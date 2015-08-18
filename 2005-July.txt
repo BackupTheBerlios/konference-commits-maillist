@@ -1,0 +1,5118 @@
+From maldn at sheep.berlios.de  Fri Jul  1 21:17:46 2005
+From: maldn at sheep.berlios.de (Malte Böhme at BerliOS)
+Date: Fri, 1 Jul 2005 21:17:46 +0200
+Subject: [Konference-commits] r72 - konference/src
+Message-ID: <200507011917.j61JHk1t017418@sheep.berlios.de>
+
+Author: maldn
+Date: 2005-07-01 21:17:45 +0200 (Fri, 01 Jul 2005)
+New Revision: 72
+
+Modified:
+   konference/src/konference_part.cpp
+Log:
+added some debuging output to tell us what codec is in use
+
+
+Modified: konference/src/konference_part.cpp
+===================================================================
+--- konference/src/konference_part.cpp	2005-06-05 12:53:25 UTC (rev 71)
++++ konference/src/konference_part.cpp	2005-07-01 19:17:45 UTC (rev 72)
+@@ -315,11 +315,21 @@
+ 	//we do this here, so that we have more control over the audio-codec
+ 	// may be usefull for changing quality etc.
+ 	if (audioPayload == RTP_PAYLOAD_G711U)
++	{
++		kdDebug() << "using g711ulaw" << endl;
++
+ 		m_audioCodec = new g711ulaw();
++	}
+ 	else if (audioPayload == RTP_PAYLOAD_G711A)
++	{
++		kdDebug() << "using g711alaw" << endl;
+ 		m_audioCodec = new g711alaw();
++	}
+ 	else if (audioPayload == RTP_PAYLOAD_GSM)
++	{
++		kdDebug() << "using gsm" << endl;
+ 		m_audioCodec = new gsmCodec();
++	}
+ 	else
+ 	{
+ 		kdDebug() << "Unknown audio payload " << audioPayload << endl;
+
+
+
+From maldn at sheep.berlios.de  Fri Jul  1 21:18:38 2005
+From: maldn at sheep.berlios.de (Malte Böhme at BerliOS)
+Date: Fri, 1 Jul 2005 21:18:38 +0200
+Subject: [Konference-commits] r73 - konference/src/sip
+Message-ID: <200507011918.j61JIcTv017547@sheep.berlios.de>
+
+Author: maldn
+Date: 2005-07-01 21:18:35 +0200 (Fri, 01 Jul 2005)
+New Revision: 73
+
+Modified:
+   konference/src/sip/sipfsm.cpp
+   konference/src/sip/sipfsm.h
+   konference/src/sip/sipmsg.cpp
+   konference/src/sip/sipmsg.h
+Log:
+fixed segfault on empty/bad sip-packet
+
+
+Modified: konference/src/sip/sipfsm.cpp
+===================================================================
+--- konference/src/sip/sipfsm.cpp	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipfsm.cpp	2005-07-01 19:18:35 UTC (rev 73)
+@@ -502,9 +502,9 @@
+ 		{
+ 			// No application running to tell of the incoming call
+ 			// Either alert via on-screen popup or send to voicemail
+-//			SipNotify *notify = new SipNotify();
+-//			notify->Display(callerName, callerUrl);
+-//			delete notify;
++			//			SipNotify *notify = new SipNotify();
++			//			notify->Display(callerName, callerUrl);
++			//			delete notify;
+ 		}
+ 	}
+ }
+@@ -541,13 +541,13 @@
+ 	sipRegistrar = new SipRegistrar(this, "maldn", localIp, localPort);
+ 
+ 	// if Proxy Registration is configured ...
+-	bool RegisterWithProxy = false;//TODO gContext->GetNumSetting("SipRegisterWithProxy",1);
++	bool RegisterWithProxy = true;//TODO gContext->GetNumSetting("SipRegisterWithProxy",1);
+ 	sipRegistration = 0;
+ 	if (RegisterWithProxy)
+ 	{
+-		QString ProxyDNS = "fwd.pulver.com";//TODO gContext->GetSetting("SipProxyName");
+-		QString ProxyUsername = "";//TODO gContext->GetSetting("SipProxyAuthName");
+-		QString ProxyPassword = "";//TODO gContext->GetSetting("SipProxyAuthPassword");
++		QString ProxyDNS = "sipgate.de";//TODO gContext->GetSetting("SipProxyName");
++		QString ProxyUsername = "8925303";//TODO gContext->GetSetting("SipProxyAuthName");
++		QString ProxyPassword = "wonttellyou :-)";//TODO gContext->GetSetting("SipProxyAuthPassword");
+ 		if ((ProxyDNS.length() > 0) && (ProxyUsername.length() > 0) && (ProxyPassword.length() > 0))
+ 		{
+ 			sipRegistration = new SipRegistration(this, natIp, localPort, ProxyUsername, ProxyPassword, ProxyDNS, 5060);
+@@ -845,6 +845,7 @@
+ 		{
+ 			switch (Event)
+ 			{
++			case SIP_UNKNOWN:     fsm = 0;                       break;//ignore event
+ 			case SIP_REGISTER:    fsm = sipRegistrar;            break;
+ 			case SIP_SUBSCRIBE:   fsm = CreateSubscriberFsm();   break;
+ 			case SIP_MESSAGE:     fsm = CreateIMFsm();           break;
+@@ -858,7 +859,7 @@
+ 			if ((fsm->FSM(Event, &sipRcv)) == SIP_IDLE)
+ 				DestroyFsm(fsm);
+ 		}
+-		else
++		else if (Event != SIP_UNKNOWN)
+ 			cerr << "SIP: fsm should not be zero here\n";
+ 	}
+ }
+@@ -916,7 +917,7 @@
+ 	}
+ 	else
+ 		cerr << "SIP: Unknown method " << Method << endl;
+-	return 0;
++	return SIP_UNKNOWN;
+ }
+ 
+ SipCall *SipFsm::MatchCall(int cr)
+@@ -928,17 +929,20 @@
+ 	return 0;
+ }
+ 
+-SipFsmBase *SipFsm::MatchCallId(SipCallId &CallId)
++SipFsmBase *SipFsm::MatchCallId(SipCallId *CallId)
+ {
+ 	SipFsmBase *it;
+ 	SipFsmBase *match=0;
+-	for (it=FsmList.first(); it; it=FsmList.next())
++	if (CallId != 0)
+ 	{
+-		if (it->callId() == CallId.string())
++		for (it=FsmList.first(); it; it=FsmList.next())
+ 		{
+-			if (match != 0)
+-				cerr << "SIP: Oops; we have two FSMs with the same Call Id\n";
+-			match = it;
++			if (it->callId() == CallId->string())
++			{
++				if (match != 0)
++					cerr << "SIP: Oops; we have two FSMs with the same Call Id\n";
++				match = it;
++			}
+ 		}
+ 	}
+ 	return match;
+@@ -1010,7 +1014,7 @@
+ {
+ 	SipCallId sipCallId;
+ 	sipCallId.setValue(CallId);
+-	SipFsmBase *Fsm = MatchCallId(sipCallId);
++	SipFsmBase *Fsm = MatchCallId(&sipCallId);
+ 	if ((Fsm) && (Fsm->type() == "IM"))
+ 	{
+ 		if ((Fsm->FSM(SIP_USER_MESSAGE, 0, &imMsg)) == SIP_IDLE)
+@@ -1130,7 +1134,7 @@
+ 		rxedFrom = sipMsg->getCompleteFrom();
+ 		RecRoute = sipMsg->getCompleteRR();
+ 		Via      = sipMsg->getCompleteVia();
+-		CallId   = sipMsg->getCallId();
++		CallId   = *(sipMsg->getCallId());
+ 		viaIp    = sipMsg->getViaIp();
+ 		viaPort  = sipMsg->getViaPort();
+ 		if (remoteUrl == 0)
+@@ -1173,7 +1177,7 @@
+ 		Status.addViaCopy(Via);
+ 	Status.addFromCopy(rxedFrom);
+ 	Status.addToCopy(rxedTo);
+-	Status.addCallId(CallId);
++	Status.addCallId(&CallId);
+ 	Status.addCSeq(statusCseq);
+ 	if ((Option & SIP_OPT_EXPIRES) && (statusExpires >= 0))
+ 		Status.addExpires(statusExpires);
+@@ -1330,7 +1334,7 @@
+ 	CodecList[0].Payload = 0;
+ 	CodecList[0].Encoding = "PCMU";
+ 	int n=0;
+-	QString CodecListString = "GSM;G.711u;G.711a";//TODO gContext->GetSetting("CodecPriorityList");
++	QString CodecListString = "G.711u;G.711a;GSM";//TODO gContext->GetSetting("CodecPriorityList");
+ 	while ((CodecListString.length() > 0) && (n < MAX_AUDIO_CODECS-1))
+ 	{
+ 		int sep = CodecListString.find(';');
+@@ -1648,7 +1652,7 @@
+ 	Invite.addVia(sipLocalIP, sipLocalPort);
+ 	Invite.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
+ 	Invite.addTo(*remoteUrl);
+-	Invite.addCallId(CallId);
++	Invite.addCallId(&CallId);
+ 	Invite.addCSeq(++cseq);
+ 	Invite.addUserAgent();
+ 
+@@ -1710,7 +1714,7 @@
+ 	Ack.addVia(sipLocalIP, sipLocalPort);
+ 	Ack.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
+ 	Ack.addTo(*remoteUrl, remoteTag);
+-	Ack.addCallId(CallId);
++	Ack.addCallId(&CallId);
+ 	Ack.addCSeq(cseq);
+ 	Ack.addUserAgent();
+ 	Ack.addNullContent();
+@@ -1735,7 +1739,7 @@
+ 	Cancel.addVia(sipLocalIP, sipLocalPort);
+ 	Cancel.addTo(*remoteUrl, remoteTag);
+ 	Cancel.addFrom(*MyUrl);
+-	Cancel.addCallId(CallId);
++	Cancel.addCallId(&CallId);
+ 	Cancel.addCSeq(cseq);
+ 	Cancel.addUserAgent();
+ 
+@@ -1786,7 +1790,7 @@
+ 		Bye.addFrom(*MyUrl);
+ 		Bye.addTo(*remoteUrl, remoteTag);
+ 	}
+-	Bye.addCallId(CallId);
++	Bye.addCallId(&CallId);
+ 	Bye.addCSeq(++cseq);
+ 	Bye.addUserAgent();
+ 
+@@ -2244,7 +2248,7 @@
+ 	Register.addVia(sipLocalIp, sipLocalPort);
+ 	Register.addFrom(*MyUrl);
+ 	Register.addTo(*MyUrl);
+-	Register.addCallId(CallId);
++	Register.addCallId(&CallId);
+ 	Register.addCSeq(++cseq);
+ 
+ 	if (authMsg && (authMsg->getAuthMethod() == "Digest"))
+@@ -2379,7 +2383,7 @@
+ 	Notify.addVia(sipLocalIp, sipLocalPort);
+ 	Notify.addFrom(*MyUrl);
+ 	Notify.addTo(*watcherUrl, remoteTag, remoteEpid);
+-	Notify.addCallId(CallId);
++	Notify.addCallId(&CallId);
+ 	Notify.addCSeq(++cseq);
+ 	int expLeft = (parent->Timer())->msLeft(this, SIP_SUBSCRIBE_EXPIRE)/1000;
+ 	Notify.addExpires(expLeft);
+@@ -2616,7 +2620,7 @@
+ 	Subscribe.addVia(sipLocalIp, sipLocalPort);
+ 	Subscribe.addFrom(*MyUrl);
+ 	Subscribe.addTo(*watchedUrl);
+-	Subscribe.addCallId(CallId);
++	Subscribe.addCallId(&CallId);
+ 	Subscribe.addCSeq(++cseq);
+ 	if (State == SIP_WATCH_STOPPING)
+ 		Subscribe.addExpires(0);
+@@ -2773,7 +2777,7 @@
+ 	Message.addVia(sipLocalIp, sipLocalPort);
+ 	Message.addFrom(*MyUrl);
+ 	Message.addTo(*imUrl, remoteTag, remoteEpid);
+-	Message.addCallId(CallId);
++	Message.addCallId(&CallId);
+ 	Message.addCSeq(++txCseq);
+ 
+ 	if (authMsg)
+@@ -2827,7 +2831,7 @@
+ 	}
+ 	//    notifySocket->close();
+ }
+-
++ 
+ SipNotify::~SipNotify()
+ {
+ 	if (notifySocket)
+@@ -2835,9 +2839,9 @@
+ 		delete notifySocket;
+ 		notifySocket = 0;
+ 	}
+-
++ 
+ }
+-
++ 
+ void SipNotify::Display(QString name, QString number)
+ {
+ 	if (notifySocket)
+@@ -2857,13 +2861,13 @@
+ 		        "    </textarea>"
+ 		        "  </container>"
+ 		        "</mythnotify>";
+-
++ 
+ 		QHostAddress RemoteIP;
+ 		RemoteIP.setAddress("127.0.0.1");
+ 		notifySocket->writeBlock(text.ascii(), text.length(), RemoteIP, 6948);
+ 	}
+ }
+-
++ 
+ */
+ 
+ /**********************************************************************
+
+Modified: konference/src/sip/sipfsm.h
+===================================================================
+--- konference/src/sip/sipfsm.h	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipfsm.h	2005-07-01 19:18:35 UTC (rev 73)
+@@ -97,6 +97,7 @@
+ 
+ 
+ // Events
++#define SIP_UNKNOWN             0x0
+ #define SIP_OUTCALL             0x100
+ #define SIP_INVITE              0x200
+ #define SIP_INVITESTATUS_2xx    0x300
+@@ -562,7 +563,7 @@
+ 	void DestroyFsm(SipFsmBase *Fsm);
+ 	void CheckRxEvent();
+ 	SipCall *MatchCall(int cr);
+-	SipFsmBase *MatchCallId(SipCallId &CallId);
++	SipFsmBase *MatchCallId(SipCallId *CallId);
+ 	SipCall *CreateCallFsm();
+ 	SipSubscriber *CreateSubscriberFsm();
+ 	SipWatcher *CreateWatcherFsm(QString Url);
+
+Modified: konference/src/sip/sipmsg.cpp
+===================================================================
+--- konference/src/sip/sipmsg.cpp	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipmsg.cpp	2005-07-01 19:18:35 UTC (rev 73)
+@@ -172,9 +172,9 @@
+ 	Msg += "\r\n";
+ }
+ 
+-void SipMsg::addCallId(SipCallId id)
++void SipMsg::addCallId(SipCallId *id)
+ {
+-	Msg += "Call-ID: " + id.string() + "\r\n";
++	Msg += "Call-ID: " + id->string() + "\r\n";
+ }
+ 
+ void SipMsg::addCSeq(int c)
+
+Modified: konference/src/sip/sipmsg.h
+===================================================================
+--- konference/src/sip/sipmsg.h	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipmsg.h	2005-07-01 19:18:35 UTC (rev 73)
+@@ -49,7 +49,7 @@
+     void addToCopy(QString To)      { addGenericLine(To); }
+     void addFromCopy(QString From)  { addGenericLine(From); }
+     void addRRCopy(QString RR)      { addGenericLine(RR); }
+-    void addCallId(SipCallId id);
++    void addCallId(SipCallId *id);
+     void addCSeq(int c);
+     void addContact(SipUrl contact, QString Methods="");
+     void addUserAgent(QString ua="MythPhone");     
+@@ -72,7 +72,7 @@
+     int getExpires() { return Expires; }
+     int getStatusCode() { return statusCode; }
+     QString getReasonPhrase() { return statusText; }
+-    SipCallId &getCallId() { return *callId; }
++    SipCallId *getCallId() { return callId; }
+     SipMsg &operator= (SipMsg &rhs);
+     SipSdp *getSdp()         { return sdp; }
+     SipXpidf *getXpidf()     { return xpidf; }
+
+
+
+From maldn at berlios.de  Sun Jul  3 18:16:08 2005
+From: maldn at berlios.de (Malte Böhme at BerliOS)
+Date: Sun, 3 Jul 2005 18:16:08 +0200
+Subject: [Konference-commits] r75 - in konference: . src src/rtp
+Message-ID: <200507031616.j63GG8kX010840@sheep.berlios.de>
+
+Author: maldn
+Date: 2005-07-03 18:16:08 +0200 (Sun, 03 Jul 2005)
+New Revision: 75
+
+Modified:
+   konference/konference.kdevelop
+   konference/src/konference_part.cpp
+   konference/src/rtp/jitter.cpp
+   konference/src/rtp/rtpaudio.cpp
+Log:
+minor changes, not noteworthy
+
+Modified: konference/konference.kdevelop
+===================================================================
+--- konference/konference.kdevelop	2005-07-03 16:15:04 UTC (rev 74)
++++ konference/konference.kdevelop	2005-07-03 16:16:08 UTC (rev 75)
+@@ -12,7 +12,14 @@
+       <keyword>Qt</keyword>
+       <keyword>KDE</keyword>
+     </keywords>
+-    <ignoreparts/>
++    <ignoreparts>
++      <part>kdevdebugger</part>
++      <part>kdevkonsoleview</part>
++      <part>kdevregexptest</part>
++      <part>kdevreplace</part>
++      <part>kdevscripting</part>
++      <part>kdevvalgrind</part>
++    </ignoreparts>
+     <projectdirectory>.</projectdirectory>
+     <absoluteprojectpath>false</absoluteprojectpath>
+     <description/>
+@@ -20,8 +27,9 @@
+   </general>
+   <kdevautoproject>
+     <general>
+-      <activetarget>src/dialogs/wizard/libwizard.la</activetarget>
++      <activetarget>src/sip/libsip.la</activetarget>
+       <useconfiguration>debug</useconfiguration>
++      <useactivetarget>true</useactivetarget>
+     </general>
+     <run>
+       <mainprogram>src/konference</mainprogram>
+
+Modified: konference/src/konference_part.cpp
+===================================================================
+--- konference/src/konference_part.cpp	2005-07-03 16:15:04 UTC (rev 74)
++++ konference/src/konference_part.cpp	2005-07-03 16:16:08 UTC (rev 75)
+@@ -48,7 +48,7 @@
+ #include "codecs/gsmcodec.h"
+ #include "codecs/g711.h"
+ #include "codecs/h263.h"
+-#include "sip/sipfsm.h"
++#include "sip/sipcontainer.h"
+ #include "audio/oss.h"
+ #include "audio/alsa.h"
+ #include "audio/audioarts.h"
+@@ -81,8 +81,9 @@
+ 		showWizard();
+ 	}
+ 
+-	sipStack = new SipContainer();
++	sipStack = new SipContainer(this);
+ 	//tell it that we want to receive the events
++	//deprecated, should disapear
+ 	sipStack->UiOpened(this);
+ 
+ 	int resolutionShift = KonferenceSettings::videoSize();
+
+Modified: konference/src/rtp/jitter.cpp
+===================================================================
+--- konference/src/rtp/jitter.cpp	2005-07-03 16:15:04 UTC (rev 74)
++++ konference/src/rtp/jitter.cpp	2005-07-03 16:16:08 UTC (rev 75)
+@@ -63,7 +63,8 @@
+ 
+ 
+ void Jitter::FreeJBuffer(RTPPACKET *Buf)
+-{
++{	
++	//cout << "Jitter::FreeJBuffer(RTPPACKET *Buffer)" << endl;
+ 	FreeJitterQ.append(Buf);
+ }
+ 
+@@ -77,6 +78,7 @@
+ 
+ void Jitter::InsertJBuffer(RTPPACKET *Buffer)
+ {
++	//cout << "Jitter::InsertJBuffer(RTPPACKET *Buffer)" << endl;
+ 	if (count() == 0)
+ 		append(Buffer);
+ 	else
+
+Modified: konference/src/rtp/rtpaudio.cpp
+===================================================================
+--- konference/src/rtp/rtpaudio.cpp	2005-07-03 16:15:04 UTC (rev 74)
++++ konference/src/rtp/rtpaudio.cpp	2005-07-03 16:16:08 UTC (rev 75)
+@@ -261,18 +261,19 @@
+ 
+ }
+ 
++
+ void rtpAudio::PlayOutAudio()
+ {
+ 	bool tryAgain;
+ 	int mLen, m, reason;
+-
++ 
+ 	// Implement a playout de-jitter delay
+ 	if (PlayoutDelay > 0)
+ 	{
+ 		PlayoutDelay--;
+ 		return;
+ 	}
+-
++ 
+ 	// Now process buffers from the Jitter Buffer
+ 	do
+ 	{
+@@ -286,7 +287,7 @@
+ 			if ((rxMode == RTP_RX_AUDIO_TO_SPEAKER))
+ 			{
+ 				PlayLen = m_codec->Decode(JBuf->RtpData, spkBuffer[spkInBuffer], mLen, spkPower2);
+-			//	kdDebug() << "spkPower: " << spkPower2 << endl;
++				//	kdDebug() << "spkPower: " << spkPower2 << endl;
+ 				//m = write(speakerFd, (uchar *)spkBuffer[spkInBuffer], PlayLen);
+ 				m_audioDevice->playFrame((uchar *)spkBuffer[spkInBuffer], PlayLen);
+ 			}
+@@ -296,53 +297,62 @@
+ 			//{
+ 			//	PlayLen = m_codec->Decode(JBuf->RtpData, SpkBuffer[spkInBuffer], mLen, spkPower2);
+ 			//	recordInPacket(SpkBuffer[spkInBuffer], PlayLen);
++			//	cout << "rxMode == RTP_RX_AUDIO_TO_BUFFER" << endl;
+ 			//}
+-			rxTimestamp += mLen;//TODO increasing the timestamp by a length of data??
++			//rxTimestamp += mLen;//TODO increasing the timestamp by a length of data??
++			//pJitter->FreeJBuffer(JBuf);
++ 
++// rxMode is RTP_RX_AUDIO_DISCARD
++			else
++{}
+ 			pJitter->FreeJBuffer(JBuf);
+-			break;
+-
+-		case JB_REASON_DUPLICATE: // This should not happen; but it does, especially with DTMF frames!
+-			if (JBuf != 0)
++				break
++;
++			case JB_REASON_DUPLICATE: // This should not happen; but it does, especially with DTMF frames!
++				if (JBuf != 0)
++					pJitter->FreeJBuffer(JBuf);
++				tryAgain = true;
++				break;
++ 
++			case JB_REASON_DTMF:
++				++rxSeqNum;
+ 				pJitter->FreeJBuffer(JBuf);
+-			tryAgain = true;
+-			break;
+-
+-		case JB_REASON_DTMF:
+-			++rxSeqNum;
+-			pJitter->FreeJBuffer(JBuf);
+-			tryAgain = true;
+-			break;
+-
+-			// This may just be because we are putting frames into the driver too early, but no way to tell
+-		case JB_REASON_MISSING:
+-			rxSeqNum++;
+-			memset(SilenceBuffer, 0, sizeof(SilenceBuffer));
+-			SilenceLen = rxPCMSamplesPerPacket * sizeof(short);
+-			if ((rxMode == RTP_RX_AUDIO_TO_SPEAKER))
+-			{
+-				m_audioDevice->playFrame((uchar *)SilenceBuffer, SilenceLen);
+-				//m = write(speakerFd, (uchar *)SilenceBuffer, SilenceLen);
++				tryAgain = true;
++				break;
++ 
++				// This may just be because we are putting frames into the driver too early, but no way to tell
++			case JB_REASON_MISSING:
++				rxSeqNum++;
++				memset(SilenceBuffer, 0, sizeof(SilenceBuffer));
++				SilenceLen = rxPCMSamplesPerPacket * sizeof(short);
++				if ((rxMode == RTP_RX_AUDIO_TO_SPEAKER))
++				{
++					m_audioDevice->playFrame((uchar *)SilenceBuffer, SilenceLen);
++					//m = write(speakerFd, (uchar *)SilenceBuffer, SilenceLen);
++				}
++				//TODO see above
++				else if (rxMode == RTP_RX_AUDIO_TO_BUFFER)
++				{
++				rxMode = RTP_RX_AUDIO_DISCARD;
++				kdDebug() << "rxMode == RTP_RX_AUDIO_TO_BUFFER" << endl;
++				//
++				//	recordInPacket(SilenceBuffer, SilenceLen);
++				}
++				pJitter->FreeJBuffer(JBuf);
++				break;
++ 
++			case JB_REASON_EMPTY: // nothing to do, just hope the driver playout buffer is full (since we can't tell!)
++				break;
++			case JB_REASON_SEQERR:
++			default:
++				//kdDebug() << "Something funny happened with the seq numbers, should reset them & start again\n";
++				break;
+ 			}
+-			//TODO see above
+-			//else if (rxMode == RTP_RX_AUDIO_TO_BUFFER)
+-			//{
+-			//
+-			//	recordInPacket(SilenceBuffer, SilenceLen);
+-			//}
+-			pJitter->FreeJBuffer(JBuf);
+-			break;
+-
+-		case JB_REASON_EMPTY: // nothing to do, just hope the driver playout buffer is full (since we can't tell!)
+-			break;
+-		case JB_REASON_SEQERR:
+-		default:
+-			//kdDebug() << "Something funny happened with the seq numbers, should reset them & start again\n";
+-			break;
+ 		}
++		while (tryAgain);
++ 
+ 	}
+-	while (tryAgain);
+ 
+-}
+ 
+ void rtpAudio::HandleRxDTMF(RTPPACKET *RTPpacket)
+ {
+@@ -394,7 +404,7 @@
+ 	else
+ 	{
+ 		RTPpacket.len = m_codec->Encode(buffer, RTPpacket.RtpData, txPCMSamplesPerPacket, spkPower2, gain);
+-//		kdDebug() << "micPower: " << spkPower2 << endl;
++		//		kdDebug() << "micPower: " << spkPower2 << endl;
+ 	}
+ 
+ 	return true;
+
+
+
+From maldn at berlios.de  Sun Jul  3 18:15:06 2005
+From: maldn at berlios.de (Malte Böhme at BerliOS)
+Date: Sun, 3 Jul 2005 18:15:06 +0200
+Subject: [Konference-commits] r74 - konference/src/sip
+Message-ID: <200507031615.j63GF63d010704@sheep.berlios.de>
+
+Author: maldn
+Date: 2005-07-03 18:15:04 +0200 (Sun, 03 Jul 2005)
+New Revision: 74
+
+Added:
+   konference/src/sip/definitions.h
+   konference/src/sip/sipcall.cpp
+   konference/src/sip/sipcall.h
+   konference/src/sip/sipcontainer.cpp
+   konference/src/sip/sipcontainer.h
+   konference/src/sip/sipfsmbase.cpp
+   konference/src/sip/sipfsmbase.h
+   konference/src/sip/sipregistration.cpp
+   konference/src/sip/sipregistration.h
+   konference/src/sip/sipthread.cpp
+   konference/src/sip/sipthread.h
+Modified:
+   konference/src/sip/Makefile.am
+   konference/src/sip/sipfsm.cpp
+   konference/src/sip/sipfsm.h
+Log:
+big patch that further seperates classes from few files to their own 
+files.
+a step further in making the code understandable
+
+
+
+Modified: konference/src/sip/Makefile.am
+===================================================================
+--- konference/src/sip/Makefile.am	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/Makefile.am	2005-07-03 16:15:04 UTC (rev 74)
+@@ -3,6 +3,8 @@
+ libsip_la_LDFLAGS = $(all_libraries)
+ noinst_LTLIBRARIES = libsip.la
+ libsip_la_SOURCES = sipfsm.cpp md5digest.cpp sipmsg.cpp sipcallid.cpp \
+-	sipsdp.cpp sipxpidf.cpp sipurl.cpp
++			sipsdp.cpp sipxpidf.cpp sipurl.cpp sipthread.cpp sipcontainer.cpp sipcall.cpp \
++	sipfsmbase.cpp sipregistration.cpp
+ noinst_HEADERS = sipfsm.h md5digest.h sipmsg.h sipcallid.h sipsdp.h sipxpidf.h \
+-	sipurl.h
++	sipurl.h sipthread.h sipcontainer.h sipcall.h sipfsmbase.h sipregistration.h \
++	definitions.h
+
+Added: konference/src/sip/definitions.h
+===================================================================
+--- konference/src/sip/definitions.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/definitions.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,178 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef DEFINES_H
++#define DEFINES_H
++
++
++// Call States
++#define SIP_IDLE                0x1
++#define SIP_OCONNECTING1        0x2    // Invite sent, no response yet
++#define SIP_OCONNECTING2        0x3    // Invite sent, 1xx response
++#define SIP_ICONNECTING         0x4
++#define SIP_CONNECTED           0x5
++#define SIP_DISCONNECTING       0x6
++#define SIP_CONNECTED_VXML      0x7    // This is a false state, only used as indication back to the frontend
++
++// Registration States
++#define SIP_REG_DISABLED        0x01   // Proxy registration turned off
++#define SIP_REG_TRYING          0x02   // Sent a REGISTER, waiting for an answer
++#define SIP_REG_CHALLENGED      0x03   // Initial REGISTER was met with a challenge, sent an authorized REGISTER
++#define SIP_REG_FAILED          0x04   // REGISTER failed; will retry after a period of time
++#define SIP_REG_REGISTERED      0x05   // Registration successful
++
++// Presence Subscriber States
++#define SIP_SUB_IDLE            SIP_IDLE
++#define SIP_SUB_SUBSCRIBED      0x10
++
++// Presence Watcher States
++#define SIP_WATCH_IDLE          SIP_IDLE
++#define SIP_WATCH_TRYING        0x20
++#define SIP_WATCH_ACTIVE        0x21
++#define SIP_WATCH_STOPPING      0x22
++#define SIP_WATCH_HOLDOFF       0x23
++
++// IM States
++#define SIP_IM_IDLE             SIP_IDLE
++#define SIP_IM_ACTIVE           0x30
++
++
++// Events
++#define SIP_UNKNOWN             0x0
++#define SIP_OUTCALL             0x100
++#define SIP_INVITE              0x200
++#define SIP_INVITESTATUS_2xx    0x300
++#define SIP_INVITESTATUS_1xx    0x400
++#define SIP_INVITESTATUS_3456xx 0x500
++#define SIP_ANSWER              0x600
++#define SIP_ACK                 0x700
++#define SIP_BYE                 0x800
++#define SIP_HANGUP              0x900
++#define SIP_BYESTATUS           0xA00
++#define SIP_CANCEL              0xB00
++#define SIP_CANCELSTATUS        0xC00
++#define SIP_REGISTER            0xD00
++#define SIP_RETX                0xE00
++#define SIP_REGISTRAR_TEXP      0xF00
++#define SIP_REGSTATUS           0x1000
++#define SIP_REG_TREGEXP         0x1100
++#define SIP_SUBSCRIBE           0x1200
++#define SIP_SUBSTATUS           0x1300
++#define SIP_NOTIFY              0x1400
++#define SIP_NOTSTATUS           0x1500
++#define SIP_PRESENCE_CHANGE     0x1600
++#define SIP_SUBSCRIBE_EXPIRE    0x1700
++#define SIP_WATCH               0x1800
++#define SIP_STOPWATCH           0x1900
++#define SIP_MESSAGE             0x1A00
++#define SIP_MESSAGESTATUS       0x1B00
++#define SIP_INFO                0x1C00
++#define SIP_INFOSTATUS          0x1D00
++#define SIP_IM_TIMEOUT          0x1E00
++#define SIP_USER_MESSAGE        0x1F00
++#define SIP_KICKWATCH           0x2000
++
++#define SIP_CMD(s)              (((s)==SIP_INVITE) || ((s)==SIP_ACK) || ((s)==SIP_BYE) || ((s)==SIP_CANCEL) || ((s)==SIP_REGISTER) || ((s)==SIP_SUBSCRIBE) || ((s)==SIP_NOTIFY) || ((s)==SIP_MESSAGE) || ((s)==SIP_INFO))
++#define SIP_STATUS(s)           (((s)==SIP_INVITESTATUS_2xx) || ((s)==SIP_INVITESTATUS_1xx) || ((s)==SIP_INVITESTATUS_3456xx) || ((s)==SIP_BYTESTATUS) || ((s)==SIP_CANCELSTATUS) || ((s)==SIP_SUBSTATUS) || ((s)==SIP_NOTSTATUS) || ((s)==SIP_MESSAGESTATUS) || ((s)==SIP_INFOSTATUS) )
++#define SIP_MSG(s)              (SIP_CMD(s) || SIP_STATUS(s))
++
++// Call FSM Actions - combination of event and state to give a "switch"able value
++#define SIP_IDLE_OUTCALL                  (SIP_IDLE          | SIP_OUTCALL)
++#define SIP_IDLE_BYE                      (SIP_IDLE          | SIP_BYE)
++#define SIP_IDLE_INVITE                   (SIP_IDLE          | SIP_INVITE)
++#define SIP_IDLE_INVITESTATUS_1xx         (SIP_IDLE          | SIP_INVITESTATUS_1xx)
++#define SIP_IDLE_INVITESTATUS_2xx         (SIP_IDLE          | SIP_INVITESTATUS_2xx)
++#define SIP_IDLE_INVITESTATUS_3456        (SIP_IDLE          | SIP_INVITESTATUS_3456xx)
++#define SIP_OCONNECTING1_INVITESTATUS_3456 (SIP_OCONNECTING1  | SIP_INVITESTATUS_3456xx)
++#define SIP_OCONNECTING1_INVITESTATUS_2xx (SIP_OCONNECTING1  | SIP_INVITESTATUS_2xx)
++#define SIP_OCONNECTING1_INVITESTATUS_1xx (SIP_OCONNECTING1  | SIP_INVITESTATUS_1xx)
++#define SIP_OCONNECTING1_RETX             (SIP_OCONNECTING1  | SIP_RETX)
++#define SIP_OCONNECTING2_INVITESTATUS_3456 (SIP_OCONNECTING2  | SIP_INVITESTATUS_3456xx)
++#define SIP_OCONNECTING2_INVITESTATUS_2xx (SIP_OCONNECTING2  | SIP_INVITESTATUS_2xx)
++#define SIP_OCONNECTING2_INVITESTATUS_1xx (SIP_OCONNECTING2  | SIP_INVITESTATUS_1xx)
++#define SIP_OCONNECTING1_HANGUP           (SIP_OCONNECTING1  | SIP_HANGUP)
++#define SIP_OCONNECTING2_HANGUP           (SIP_OCONNECTING2  | SIP_HANGUP)
++#define SIP_OCONNECTING1_INVITE           (SIP_OCONNECTING1  | SIP_INVITE)
++#define SIP_ICONNECTING_INVITE            (SIP_ICONNECTING   | SIP_INVITE)
++#define SIP_ICONNECTING_ANSWER            (SIP_ICONNECTING   | SIP_ANSWER)
++#define SIP_ICONNECTING_CANCEL            (SIP_ICONNECTING   | SIP_CANCEL)
++#define SIP_CONNECTED_ACK                 (SIP_CONNECTED     | SIP_ACK)
++#define SIP_CONNECTED_INVITESTATUS_2xx    (SIP_CONNECTED     | SIP_INVITESTATUS_2xx)
++#define SIP_CONNECTED_RETX                (SIP_CONNECTED     | SIP_RETX)
++#define SIP_CONNECTED_BYE                 (SIP_CONNECTED     | SIP_BYE)
++#define SIP_CONNECTED_HANGUP              (SIP_CONNECTED     | SIP_HANGUP)
++#define SIP_DISCONNECTING_BYESTATUS       (SIP_DISCONNECTING | SIP_BYESTATUS)
++#define SIP_DISCONNECTING_ACK             (SIP_DISCONNECTING | SIP_ACK)
++#define SIP_DISCONNECTING_RETX            (SIP_DISCONNECTING | SIP_RETX)
++#define SIP_DISCONNECTING_CANCEL          (SIP_DISCONNECTING | SIP_CANCEL)
++#define SIP_DISCONNECTING_CANCELSTATUS    (SIP_DISCONNECTING | SIP_CANCELSTATUS)
++#define SIP_DISCONNECTING_BYE             (SIP_DISCONNECTING | SIP_BYE)
++
++// Registration FSM Actions - combination of event and state to give a "switch"able value
++#define SIP_REG_TRYING_STATUS             (SIP_REG_TRYING    | SIP_REGSTATUS)
++#define SIP_REG_CHALL_STATUS              (SIP_REG_CHALLENGED| SIP_REGSTATUS)
++#define SIP_REG_REGISTERED_TREGEXP        (SIP_REG_REGISTERED| SIP_REG_TREGEXP)
++#define SIP_REG_TRYING_RETX               (SIP_REG_TRYING    | SIP_RETX)
++#define SIP_REG_CHALL_RETX                (SIP_REG_CHALLENGED| SIP_RETX)
++#define SIP_REG_FAILED_RETX               (SIP_REG_FAILED    | SIP_RETX)
++
++// Presence Subscriber FSM Actions - combination of event and state to give a "switch"able value
++#define SIP_SUB_IDLE_SUBSCRIBE            (SIP_SUB_IDLE       | SIP_SUBSCRIBE)
++#define SIP_SUB_SUBS_SUBSCRIBE            (SIP_SUB_SUBSCRIBED | SIP_SUBSCRIBE)
++#define SIP_SUB_SUBS_SUBSCRIBE_EXPIRE     (SIP_SUB_SUBSCRIBED | SIP_SUBSCRIBE_EXPIRE)
++#define SIP_SUB_SUBS_RETX                 (SIP_SUB_SUBSCRIBED | SIP_RETX)
++#define SIP_SUB_SUBS_NOTSTATUS            (SIP_SUB_SUBSCRIBED | SIP_NOTSTATUS)
++#define SIP_SUB_SUBS_PRESENCE_CHANGE      (SIP_SUB_SUBSCRIBED | SIP_PRESENCE_CHANGE)
++
++// Presence Watcher FSM Actions - combination of event and state to give a "switch"able value
++#define SIP_WATCH_IDLE_WATCH              (SIP_WATCH_IDLE     | SIP_WATCH)
++#define SIP_WATCH_TRYING_WATCH            (SIP_WATCH_TRYING   | SIP_WATCH)
++#define SIP_WATCH_ACTIVE_SUBSCRIBE_EXPIRE (SIP_WATCH_ACTIVE   | SIP_SUBSCRIBE_EXPIRE)
++#define SIP_WATCH_TRYING_RETX             (SIP_WATCH_TRYING   | SIP_RETX)
++#define SIP_WATCH_ACTIVE_RETX             (SIP_WATCH_ACTIVE   | SIP_RETX)
++#define SIP_WATCH_TRYING_SUBSTATUS        (SIP_WATCH_TRYING   | SIP_SUBSTATUS)
++#define SIP_WATCH_ACTIVE_SUBSTATUS        (SIP_WATCH_ACTIVE   | SIP_SUBSTATUS)
++#define SIP_WATCH_ACTIVE_NOTIFY           (SIP_WATCH_ACTIVE   | SIP_NOTIFY)
++#define SIP_WATCH_TRYING_STOPWATCH        (SIP_WATCH_TRYING   | SIP_STOPWATCH)
++#define SIP_WATCH_ACTIVE_STOPWATCH        (SIP_WATCH_ACTIVE   | SIP_STOPWATCH)
++#define SIP_WATCH_STOPPING_RETX           (SIP_WATCH_STOPPING | SIP_RETX)
++#define SIP_WATCH_STOPPING_SUBSTATUS      (SIP_WATCH_STOPPING | SIP_SUBSTATUS)
++#define SIP_WATCH_TRYING_SUBSCRIBE        (SIP_WATCH_TRYING   | SIP_SUBSCRIBE)
++#define SIP_WATCH_HOLDOFF_WATCH           (SIP_WATCH_HOLDOFF  | SIP_WATCH)
++#define SIP_WATCH_HOLDOFF_STOPWATCH       (SIP_WATCH_HOLDOFF  | SIP_STOPWATCH)
++#define SIP_WATCH_HOLDOFF_SUBSCRIBE       (SIP_WATCH_HOLDOFF  | SIP_SUBSCRIBE)
++#define SIP_WATCH_HOLDOFF_KICK            (SIP_WATCH_HOLDOFF  | SIP_KICKWATCH)
++
++
++// Build Options logically OR'ed and sent to build procs
++#define SIP_OPT_SDP		1
++#define SIP_OPT_CONTACT	2
++#define SIP_OPT_VIA		4
++#define SIP_OPT_ALLOW	8
++#define SIP_OPT_EXPIRES	16
++
++// Timers
++#define REG_RETRY_TIMER			3000 // seconds
++#define REG_FAIL_RETRY_TIMER	180000 // 3 minutes
++#define REG_RETRY_MAXCOUNT		5
++
++#define SIP_POLL_PERIOD			2   // Twice per second
++
++
++#endif //DEFINES_H
+
+Added: konference/src/sip/sipcall.cpp
+===================================================================
+--- konference/src/sip/sipcall.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipcall.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,701 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include "definitions.h"
++#include "sipmsg.h"
++#include "sipurl.h"
++#include "sipregistration.h"
++#include "sipfsm.h"
++#include "sipsdp.h"
++
++#include <iostream>
++using namespace std;
++
++#include "sipcall.h"
++
++/**********************************************************************
++SipCall
++ 
++This class handles a per call instance of the FSM
++**********************************************************************/
++
++SipCall::SipCall(QString localIp, QString natIp, int localPort, int n, SipFsm *par) : SipFsmBase(par)
++{
++	callRef = n;
++	sipLocalIP = localIp;
++	sipNatIP = natIp;
++	sipLocalPort = localPort;
++	initialise();
++}
++
++SipCall::~SipCall()
++{}
++
++
++void SipCall::initialise()
++{
++	// Initialise Local Parameters.  We get info from the database on every new
++	// call in case it has been changed
++	myDisplayName = "maldn";//TODO gContext->GetSetting("MySipName");
++	sipUsername = "Konference";//gContext->GetSetting("MySipUser");  -- Note; this is really not needed & is too much config
++
++	// Get other params - done on a per call basis so config changes take effect immediately
++	sipAudioRtpPort = 21232;//TODO atoi((const char *)gContext->GetSetting("AudioLocalPort"));
++	sipVideoRtpPort = 21234;//TODO atoi((const char *)gContext->GetSetting("VideoLocalPort"));
++
++	sipRtpPacketisation = 20;
++	State = SIP_IDLE;
++	remoteAudioPort = 0;
++	remoteVideoPort = 0;
++	remoteIp = "";
++	audioPayloadIdx = -1;
++	videoPayload = -1;
++	dtmfPayload = -1;
++	remoteIp = "";
++	allowVideo = true;
++	disableNat = false;
++	rxVideoResolution = "CIF";
++	txVideoResolution = "CIF";
++	viaRegProxy = 0;
++
++	MyUrl = 0;
++	MyContactUrl = 0;
++
++	// Read the codec priority list from the database into an array
++	CodecList[0].Payload = 0;
++	CodecList[0].Encoding = "PCMU";
++	int n=0;
++	QString CodecListString = "G.711u;G.711a;GSM";//TODO gContext->GetSetting("CodecPriorityList");
++	while ((CodecListString.length() > 0) && (n < -1))
++	{
++		int sep = CodecListString.find(';');
++		QString CodecStr = CodecListString;
++		if (sep != -1)
++			CodecStr = CodecListString.left(sep);
++		if (CodecStr == "G.711u")
++		{
++			CodecList[n].Payload = 0;
++			CodecList[n++].Encoding = "PCMU";
++		}
++		else if (CodecStr == "G.711a")
++		{
++			CodecList[n].Payload = 8;
++			CodecList[n++].Encoding = "PCMA";
++		}
++		else if (CodecStr == "GSM")
++		{
++			CodecList[n].Payload = 3;
++			CodecList[n++].Encoding = "GSM";
++		}
++		else
++		{}
++//			cout << "Unknown codec " << CodecStr << " in Codec Priority List\n";
++		if (sep != -1)
++		{
++			QString tempStr = CodecListString.mid(sep+1);
++			CodecListString = tempStr;
++		}
++		else
++			break;
++	}
++	CodecList[n].Payload = -1;
++}
++
++
++int SipCall::FSM(int Event, SipMsg *sipMsg, void *Value)
++{
++	(void)Value;
++	int oldState = State;
++
++	// Parse SIP messages for general relevant data
++	if (sipMsg != 0)
++		ParseSipMsg(Event, sipMsg);
++
++
++	switch(Event | State)
++	{
++	case SIP_IDLE_BYE:
++		BuildSendStatus(481, "BYE", sipMsg->getCSeqValue()); //481 Call/Transaction does not exist
++		State = SIP_IDLE;
++		break;
++	case SIP_IDLE_INVITESTATUS_1xx:
++	case SIP_IDLE_INVITESTATUS_2xx:
++	case SIP_IDLE_INVITESTATUS_3456:
++		// Check if we are being a proxy
++		if (sipMsg->getViaIp() == sipLocalIP)
++		{
++			ForwardMessage(sipMsg);
++			State = SIP_IDLE;
++		}
++		break;
++	case SIP_IDLE_OUTCALL:
++		cseq = 1;
++		remoteUrl = new SipUrl(DestinationUri, "");
++		if ((remoteUrl->getHostIp()).length() == 0)
++		{
++			cout << "SIP: Tried to call " << DestinationUri << " but can't get destination IP address\n";
++			State = SIP_IDLE;
++			break;
++		}
++
++#ifdef SIPREGISTRAR
++		// If the domain matches the local registrar, see if user is registered
++		if ((remoteUrl->getHost() == "volkaerts") &&
++		        (!(parent->getRegistrar())->getRegisteredContact(remoteUrl)))
++		{
++			cout << DestinationUri << " is not registered here\n";
++			break;
++		}
++#endif
++		if (UseNat(remoteUrl->getHostIp()))
++			sipLocalIP = sipNatIP;
++		MyContactUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
++		if (viaRegProxy == 0)
++			MyUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
++		else
++			MyUrl = new SipUrl(myDisplayName, viaRegProxy->registeredAs(), viaRegProxy->registeredTo(), viaRegProxy->registeredPort());
++		BuildSendInvite(0);
++		State = SIP_OCONNECTING1;
++		break;
++	case SIP_IDLE_INVITE:
++		cseq = sipMsg->getCSeqValue();
++		if (UseNat(remoteUrl->getHostIp()))
++			sipLocalIP = sipNatIP;
++		MyContactUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
++#ifdef SIPREGISTRAR
++		if ((toUrl->getUser() == sipUsername)) && (toUrl->getHost() ==  "Volkaerts"))
++#endif
++		{
++			if (parent->numCalls() > 1)     // Check there are no active calls, and give busy if there is
++			{
++				BuildSendStatus(486, "INVITE", sipMsg->getCSeqValue()); //486 Busy Here
++				State = SIP_DISCONNECTING;
++			}
++			else
++			{
++				GetSDPInfo(sipMsg);
++				if (audioPayloadIdx != -1) // INVITE had a codec we support; proces
++				{
++					AlertUser(sipMsg);
++					BuildSendStatus(100, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); //100 Trying
++					BuildSendStatus(180, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); //180 Ringing
++					State = SIP_ICONNECTING;
++				}
++				else
++				{
++					BuildSendStatus(488, "INVITE", sipMsg->getCSeqValue()); //488 Not Acceptable Here
++					State = SIP_DISCONNECTING;
++				}
++			}
++		}
++
++#ifdef SIPREGISTRAR
++		// Not for me, see if it is for a registered UA
++		else if ((toUrl->getHost() == "volkaerts") && ((parent->getRegistrar())->getRegisteredContact(toUrl)))
++		{
++			ForwardMessage(sipMsg);
++			State = SIP_IDLE;
++		}
++
++		// Not for me and not for anyone registered here
++		else
++		{
++			BuildSendStatus(404, "INVITE", sipMsg->getCSeqValue()); //404 Not Found
++			State = SIP_DISCONNECTING;
++		}
++#endif
++		break;
++	case SIP_OCONNECTING1_INVITESTATUS_1xx:
++			(parent->Timer())->Stop(this, SIP_RETX);
++			parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
++			State = SIP_OCONNECTING2;
++			break;
++		case SIP_OCONNECTING1_INVITESTATUS_3456:
++				(parent->Timer())->Stop(this, SIP_RETX);
++				parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
++				// Fall through
++			case SIP_OCONNECTING2_INVITESTATUS_3456:
++					if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
++						        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
++					{
++						if (!sentAuthenticated) // This avoids loops where we are not authenticating properly
++						{
++							BuildSendAck();
++							BuildSendInvite(sipMsg);
++							State = SIP_OCONNECTING1;
++						}
++					}
++					else
++					{
++						BuildSendAck();
++						State = SIP_IDLE;
++					}
++		break;
++	case SIP_OCONNECTING1_INVITESTATUS_2xx:
++			(parent->Timer())->Stop(this, SIP_RETX);
++			// Fall through
++		case SIP_OCONNECTING2_INVITESTATUS_2xx:
++				GetSDPInfo(sipMsg);
++				if (audioPayloadIdx != -1) // INVITE had a codec we support; proces
++			{
++				BuildSendAck();
++					State = SIP_CONNECTED;
++				}
++				else
++				{
++					cerr << "2xx STATUS did not contain a valid Audio codec\n";
++					BuildSendAck();  // What is the right thing to do here?
++					BuildSendBye(0);
++					State = SIP_DISCONNECTING;
++				}
++		break;
++	case SIP_OCONNECTING1_INVITE:
++			// This is usually because we sent the INVITE to ourselves, & when we receive it matches the call-id for this call leg
++			(parent->Timer())->Stop(this, SIP_RETX);
++			BuildSendCancel(0);
++			State = SIP_DISCONNECTING;
++			break;
++		case SIP_OCONNECTING1_HANGUP:
++				(parent->Timer())->Stop(this, SIP_RETX);
++				BuildSendCancel(0);
++				State = SIP_IDLE;
++				break;
++			case SIP_OCONNECTING1_RETX:
++					if (Retransmit(false))
++						(parent->Timer())->Start(this, t1, SIP_RETX);
++						else
++							State = SIP_IDLE;
++							break;
++						case SIP_OCONNECTING2_HANGUP:
++								BuildSendCancel(0);
++								State = SIP_DISCONNECTING;
++								break;
++							case SIP_ICONNECTING_INVITE:
++									BuildSendStatus(180, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); // Retxed INVITE, resend 180 Ringing
++									break;
++								case SIP_ICONNECTING_ANSWER:
++										BuildSendStatus(200, "INVITE", cseq, SIP_OPT_SDP | SIP_OPT_CONTACT, -1, BuildSdpResponse());
++										State = SIP_CONNECTED;
++										break;
++									case SIP_ICONNECTING_CANCEL:
++											BuildSendStatus(200, "CANCEL", sipMsg->getCSeqValue()); //200 Ok
++											State = SIP_IDLE;
++											break;
++										case SIP_CONNECTED_ACK:
++												(parent->Timer())->Stop(this, SIP_RETX); // Stop resending 200 OKs
++												break;
++											case SIP_CONNECTED_INVITESTATUS_2xx:
++													Retransmit(true); // Resend our ACK
++													break;
++												case SIP_CONNECTED_RETX:
++														if (Retransmit(false))
++															(parent->Timer())->Start(this, t1, SIP_RETX);
++															else
++																State = SIP_IDLE;
++																break;
++															case SIP_CONNECTED_BYE:
++																	(parent->Timer())->Stop(this, SIP_RETX);
++																	if (sipMsg->getCSeqValue() > cseq)
++																	{
++																		cseq = sipMsg->getCSeqValue();
++																		BuildSendStatus(200, "BYE", cseq); //200 Ok
++																		State = SIP_IDLE;
++																	}
++																	else
++																		BuildSendStatus(400, "BYE", sipMsg->getCSeqValue()); //400 Bad Request
++																		break;
++																	case SIP_CONNECTED_HANGUP:
++																			BuildSendBye(0);
++																			State = SIP_DISCONNECTING;
++																			break;
++																		case SIP_DISCONNECTING_ACK:
++																				(parent->Timer())->Stop(this, SIP_RETX);
++																				State = SIP_IDLE;
++																				break;
++																			case SIP_DISCONNECTING_RETX:
++																					if (Retransmit(false))
++																						(parent->Timer())->Start(this, t1, SIP_RETX);
++																						else
++																							State = SIP_IDLE;
++																							break;
++																						case SIP_DISCONNECTING_CANCEL:
++																								(parent->Timer())->Stop(this, SIP_RETX);
++																								BuildSendStatus(200, "CANCEL", sipMsg->getCSeqValue()); //200 Ok
++																								State = SIP_IDLE;
++																								break;
++																							case SIP_DISCONNECTING_BYESTATUS:
++																									(parent->Timer())->Stop(this, SIP_RETX);
++																									if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
++																										        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
++																									{
++																										if (!sentAuthenticated)
++																											BuildSendBye(sipMsg);
++																									}
++																									else
++																										State = SIP_IDLE;
++																										break;
++																									case SIP_DISCONNECTING_CANCELSTATUS:
++																											(parent->Timer())->Stop(this, SIP_RETX);
++																											if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
++																												        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
++																											{
++																												if (!sentAuthenticated)
++																													BuildSendCancel(sipMsg);
++																											}
++																											else
++																												State = SIP_IDLE;
++																												break;
++																											case SIP_DISCONNECTING_BYE:
++																													(parent->Timer())->Stop(this, SIP_RETX);
++																													BuildSendStatus(200, "BYE", sipMsg->getCSeqValue()); //200 Ok
++																													State = SIP_IDLE;
++																													break;
++
++																													// Events ignored in states
++																												case SIP_OCONNECTING2_INVITESTATUS_1xx:
++																														parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
++																														break;
++
++																														// Everything else is an error, just flag it for now
++																													default:
++																															//SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP CALL FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
++																															break;
++																														}
++
++	DebugFsm(Event, oldState, State);
++	return State;
++}
++
++bool SipCall::UseNat(QString destIPAddress)
++{
++	(void)destIPAddress;
++	// User to check subnets but this was a flawed concept; now checks a configuration item per-remote user
++	return !disableNat;
++}
++
++
++void SipCall::BuildSendInvite(SipMsg *authMsg)
++{
++	if (authMsg == 0)
++		CallId.Generate(sipLocalIP);
++
++	SipMsg Invite("INVITE");
++	Invite.addRequestLine(*remoteUrl);
++	Invite.addVia(sipLocalIP, sipLocalPort);
++	Invite.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
++	Invite.addTo(*remoteUrl);
++	Invite.addCallId(&CallId);
++	Invite.addCSeq(++cseq);
++	Invite.addUserAgent();
++
++	if (authMsg)
++	{
++		if (authMsg->getAuthMethod() == "Digest")
++			Invite.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
++		else
++			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
++		sentAuthenticated = true;
++	}
++	else
++		sentAuthenticated = false;
++
++	//Invite.addAllow();
++	Invite.addContact(*MyContactUrl);
++	addSdpToInvite(Invite, allowVideo);
++
++	parent->Transmit(Invite.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
++	retx = Invite.string();
++	t1 = 500;
++	(parent->Timer())->Start(this, t1, SIP_RETX);
++}
++
++
++
++void SipCall::ForwardMessage(SipMsg *msg)
++{
++	QString toIp;
++	int toPort;
++
++	if (msg->getMethod() != "STATUS")
++	{
++		msg->insertVia(sipLocalIP, sipLocalPort);
++		toIp = toUrl->getHostIp();
++		toPort = toUrl->getPort();
++	}
++	else
++	{
++		msg->removeVia();
++		toIp = msg->getViaIp();
++		toPort = msg->getViaPort();
++	}
++	parent->Transmit(msg->string(), toIp, toPort);
++}
++
++
++
++void SipCall::BuildSendAck()
++{
++	if ((MyUrl == 0) || (remoteUrl == 0))
++	{
++		cerr << "URL variables not setup\n";
++		return;
++	}
++
++	SipMsg Ack("ACK");
++	Ack.addRequestLine(*remoteUrl);
++	Ack.addVia(sipLocalIP, sipLocalPort);
++	Ack.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
++	Ack.addTo(*remoteUrl, remoteTag);
++	Ack.addCallId(&CallId);
++	Ack.addCSeq(cseq);
++	Ack.addUserAgent();
++	Ack.addNullContent();
++
++	// Even if we have a contact URL in one of the response messages; we still send the ACK to
++	// the same place we sent the INVITE to
++	parent->Transmit(Ack.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
++	retx = Ack.string();
++}
++
++
++void SipCall::BuildSendCancel(SipMsg *authMsg)
++{
++	if ((MyUrl == 0) || (remoteUrl == 0))
++	{
++		cerr << "URL variables not setup\n";
++		return;
++	}
++
++	SipMsg Cancel("CANCEL");
++	Cancel.addRequestLine(*remoteUrl);
++	Cancel.addVia(sipLocalIP, sipLocalPort);
++	Cancel.addTo(*remoteUrl, remoteTag);
++	Cancel.addFrom(*MyUrl);
++	Cancel.addCallId(&CallId);
++	Cancel.addCSeq(cseq);
++	Cancel.addUserAgent();
++
++	if (authMsg)
++	{
++		if (authMsg->getAuthMethod() == "Digest")
++			Cancel.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
++		else
++			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
++		sentAuthenticated = true;
++	}
++	else
++		sentAuthenticated = false;
++
++	Cancel.addNullContent();
++
++	// Send new transactions to (a) record route, (b) contact URL or (c) configured URL
++	if (recRouteUrl)
++		parent->Transmit(Cancel.string(), retxIp = recRouteUrl->getHostIp(), retxPort = recRouteUrl->getPort());
++	else if (contactUrl)
++		parent->Transmit(Cancel.string(), retxIp = contactUrl->getHostIp(), retxPort = contactUrl->getPort());
++	else
++		parent->Transmit(Cancel.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
++	retx = Cancel.string();
++	t1 = 500;
++	(parent->Timer())->Start(this, t1, SIP_RETX);
++}
++
++
++void SipCall::BuildSendBye(SipMsg *authMsg)
++{
++	if (remoteUrl == 0)
++	{
++		cerr << "URL variables not setup\n";
++		return;
++	}
++
++	SipMsg Bye("BYE");
++	Bye.addRequestLine(*remoteUrl);
++	Bye.addVia(sipLocalIP, sipLocalPort);
++	if (rxedFrom.length() > 0)
++	{
++		Bye.addFromCopy(rxedFrom);
++		Bye.addToCopy(rxedTo);
++	}
++	else
++	{
++		Bye.addFrom(*MyUrl);
++		Bye.addTo(*remoteUrl, remoteTag);
++	}
++	Bye.addCallId(&CallId);
++	Bye.addCSeq(++cseq);
++	Bye.addUserAgent();
++
++	if (authMsg)
++	{
++		if (authMsg->getAuthMethod() == "Digest")
++			Bye.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
++		else
++			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
++		sentAuthenticated = true;
++	}
++	else
++		sentAuthenticated = false;
++
++	Bye.addNullContent();
++
++	// Send new transactions to (a) record route, (b) contact URL or (c) configured URL
++	if (recRouteUrl)
++		parent->Transmit(Bye.string(), retxIp = recRouteUrl->getHostIp(), retxPort = recRouteUrl->getPort());
++	else if (contactUrl)
++		parent->Transmit(Bye.string(), retxIp = contactUrl->getHostIp(), retxPort = contactUrl->getPort());
++	else
++		parent->Transmit(Bye.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
++	retx = Bye.string();
++	t1 = 500;
++	(parent->Timer())->Start(this, t1, SIP_RETX);
++}
++
++void SipCall::AlertUser(SipMsg *rxMsg)
++{
++	// A new incoming call has been received, tell someone!
++	// Actually we just pull out the important bits here & on the
++	// next call to poll the stack the State will have changed to
++	// alert the user
++	if (rxMsg != 0)
++	{
++		SipUrl *from = rxMsg->getFromUrl();
++
++		if (from)
++		{
++			CallersUserid = from->getUser();
++			if ((viaRegProxy) && (viaRegProxy->registeredTo() == from->getHost()))
++				CallerUrl = from->getUser();
++			else
++			{
++				CallerUrl = from->getUser() + "@" + from->getHost();
++				if (from->getPort() != 5060)
++					CallerUrl += ":" + QString::number(from->getPort());
++			}
++			CallersDisplayName = from->getDisplay();
++		}
++		else
++			cerr << "What no from in INVITE?  It is invalid then.\n";
++	}
++	else
++		cerr << "What no INVITE?  How did we get here then?\n";
++}
++
++void SipCall::GetSDPInfo(SipMsg *sipMsg)
++{
++	audioPayloadIdx = -1;
++	videoPayload = -1;
++	dtmfPayload = -1;
++	remoteAudioPort = 0;
++	remoteVideoPort = 0;
++	rxVideoResolution = "AUDIOONLY";
++
++	SipSdp *Sdp = sipMsg->getSdp();
++	if (Sdp != 0)
++	{
++		remoteIp = Sdp->getMediaIP();
++		remoteAudioPort = Sdp->getAudioPort();
++		remoteVideoPort = Sdp->getVideoPort();
++
++		// See if there is an audio codec we support
++		QPtrList<sdpCodec> *audioCodecs = Sdp->getAudioCodecList();
++		sdpCodec *c;
++		if (audioCodecs)
++		{
++			for (int n=0; (n<MAX_AUDIO_CODECS) && (CodecList[n].Payload != -1) &&
++			        (audioPayloadIdx == -1); n++)
++			{
++				for (c=audioCodecs->first(); c; c=audioCodecs->next())
++				{
++					if (CodecList[n].Payload == c->intValue())
++						audioPayloadIdx = n;
++
++					// Note - no checking for dynamic payloads implemented yet --- need to match
++					// by text if .Payload == -1
++				}
++			}
++
++			// Also check for DTMF
++			for (c=audioCodecs->first(); c; c=audioCodecs->next())
++			{
++				if (c->strValue() == "telephone-event/8000")
++					dtmfPayload = c->intValue();
++			}
++		}
++
++		// See if there is a video codec we support
++		QPtrList<sdpCodec> *videoCodecs = Sdp->getVideoCodecList();
++		if (videoCodecs)
++		{
++			for (c=videoCodecs->first(); c; c=videoCodecs->next())
++			{
++				if ((c->intValue() == 34) && (c->strValue() == "H263/90000"))
++				{
++					videoPayload = c->intValue();
++					rxVideoResolution = (c->fmtValue()).section('=', 0, 0);
++					break;
++				}
++			}
++		}
++
++		//SipFsm::Debug(SipDebugEvent::SipDebugEv, "SDP contains IP " + remoteIp + " A-Port " + QString::number(remoteAudioPort) + " V-Port " + QString::number(remoteVideoPort) + " Audio Codec:" + QString::number(audioPayloadIdx) + " Video Codec:" + QString::number(videoPayload) + " Format:" + rxVideoResolution + " DTMF: " + QString::number(dtmfPayload) + "\n\n");
++	}
++	//else
++		//SipFsm::Debug(SipDebugEvent::SipDebugEv, "SIP: No SDP in message\n");
++}
++
++
++
++void SipCall::addSdpToInvite(SipMsg& msg, bool advertiseVideo)
++{
++	SipSdp sdp(sipLocalIP, sipAudioRtpPort, advertiseVideo ? sipVideoRtpPort : 0);
++
++	for (int n=0; (n<MAX_AUDIO_CODECS) && (CodecList[n].Payload != -1); n++)
++		sdp.addAudioCodec(CodecList[n].Payload, CodecList[n].Encoding + "/8000");
++
++	// Signal support for DTMF
++	sdp.addAudioCodec(101, "telephone-event/8000", "0-11");
++
++	if (advertiseVideo)
++		sdp.addVideoCodec(34, "H263/90000", txVideoResolution +"=2");
++	sdp.encode();
++	msg.addContent("application/sdp", sdp.string());
++}
++
++
++QString SipCall::BuildSdpResponse()
++{
++	SipSdp sdp(sipLocalIP, sipAudioRtpPort, (videoPayload != -1) ? sipVideoRtpPort : 0);
++
++	sdp.addAudioCodec(CodecList[audioPayloadIdx].Payload, CodecList[audioPayloadIdx].Encoding + "/8000");
++
++	// Signal support for DTMF
++	if (dtmfPayload != -1)
++		sdp.addAudioCodec(dtmfPayload, "telephone-event/8000", "0-11");
++
++	if (videoPayload != -1)
++		sdp.addVideoCodec(34, "H263/90000", txVideoResolution +"=2");
++
++	sdp.encode();
++	return sdp.string();
++}
++
++
++
+
+Added: konference/src/sip/sipcall.h
+===================================================================
+--- konference/src/sip/sipcall.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipcall.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,110 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPCALL_H
++#define SIPCALL_H
++
++#include <qstring.h>
++
++class SipRegistration;
++
++struct CodecNeg
++{
++	int Payload;
++	QString Encoding;
++};
++
++#include "sipfsmbase.h"
++
++#define MAX_AUDIO_CODECS 5
++
++class SipCall : public SipFsmBase
++{
++public:
++	SipCall(QString localIp, QString natIp, int localPort, int n, SipFsm *par);
++	~SipCall();
++	int  getState() { return State; };
++	void setVideoPayload(int p) { videoPayload = p; };
++	void setVideoResolution(QString v) { txVideoResolution = v; };
++	void setAllowVideo(bool a)  { allowVideo = a; };
++	void setDisableNat(bool n)  { disableNat = n; };
++	void to(QString uri, QString DispName) { DestinationUri = uri; DisplayName = DispName; };
++	void dialViaProxy(SipRegistration *s) { viaRegProxy = s; };
++	virtual int  FSM(int Event, SipMsg *sipMsg=0, void *Value=0);
++	virtual QString type() { return "CALL"; };
++	virtual int     getCallRef() { return callRef; };
++	void GetIncomingCaller(QString &u, QString &d, QString &l, bool &aud)
++	{ u = CallersUserid; d = CallersDisplayName; l = CallerUrl; aud = (videoPayload == -1); }
++	void GetSdpDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes)
++	{
++		ip=remoteIp; aport=remoteAudioPort; vport=remoteVideoPort; audPay = CodecList[audioPayloadIdx].Payload;
++		audCodec = CodecList[audioPayloadIdx].Encoding; dtmfPay = dtmfPayload; vidPay = videoPayload;
++		vidCodec = (vidPay == 34 ? "H263" : ""); vidRes = rxVideoResolution;
++	}
++
++private:
++	int       State;
++	int       callRef;
++
++	void initialise();
++	bool UseNat(QString destIPAddress);
++	void ForwardMessage(SipMsg *msg);
++	void BuildSendInvite(SipMsg *authMsg);
++	void BuildSendAck();
++	void BuildSendBye(SipMsg *authMsg);
++	void BuildSendCancel(SipMsg *authMsg);
++	void AlertUser(SipMsg *rxMsg);
++	void GetSDPInfo(SipMsg *sipMsg);
++	void addSdpToInvite(SipMsg& msg, bool advertiseVideo);
++	QString BuildSdpResponse();
++
++	QString DestinationUri;
++	QString DisplayName;
++	CodecNeg CodecList[MAX_AUDIO_CODECS];
++	QString txVideoResolution;
++	QString rxVideoResolution;
++
++	int cseq;
++	SipRegistration *viaRegProxy;
++
++	// Incoming call information
++	QString CallersUserid;
++	QString CallersDisplayName;
++	QString CallerUrl;
++	QString remoteIp;
++	int     remoteAudioPort;
++	int     remoteVideoPort;
++	int     audioPayloadIdx;
++	int     videoPayload;
++	int     dtmfPayload;
++	bool    allowVideo;
++	bool    disableNat;
++
++	QString myDisplayName;	// The name to display when I call others
++	QString sipLocalIP;
++	QString sipNatIP;
++	int     sipLocalPort;
++	QString sipUsername;
++
++	int sipRtpPacketisation;	// RTP Packetisation period in ms
++	int sipAudioRtpPort;
++	int sipVideoRtpPort;
++};
++
++#endif
+
+Added: konference/src/sip/sipcontainer.cpp
+===================================================================
+--- konference/src/sip/sipcontainer.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipcontainer.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,220 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++ 
++#include "sipcontainer.h"
++
++/**********************************************************************
++SipContainer
++ 
++This is a container class that runs the SIP protocol stack within a 
++separate thread and controls communication with it. 
++ 
++**********************************************************************/
++
++SipContainer::SipContainer(QObject *parent, int listenPort)
++{
++	killSipThread = false;
++	CallState = -1;
++	m_parent = parent;
++
++	m_eventQueueMutex = new QMutex();
++	m_eventQueue = new QStringList();
++	m_notifyQueue = new QStringList();
++	
++	sipThread = new SipThread(this);
++	sipThread->start();
++}
++
++SipContainer::~SipContainer()
++{
++	killSipThread = true;
++	sipThread->wait();
++	delete sipThread;
++}
++
++void SipContainer::PlaceNewCall(QString Mode, QString uri, QString name, bool disableNat)
++{
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("PLACECALL");
++	m_eventQueue->append(Mode);
++	m_eventQueue->append(uri);
++	m_eventQueue->append(name);
++	m_eventQueue->append(disableNat ? "DisableNAT" : "EnableNAT");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::AnswerRingingCall(QString Mode, bool disableNat)
++{
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("ANSWERCALL");
++	m_eventQueue->append(Mode);
++	m_eventQueue->append(disableNat ? "DisableNAT" : "EnableNAT");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::HangupCall()
++{
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("HANGUPCALL");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::UiOpened(QObject *callingApp)
++{
++	m_eventQueueMutex->lock();
++	//eventWindow = callingApp;
++	m_eventQueue->append("UIOPENED");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::UiClosed()
++{
++	m_eventQueueMutex->lock();
++	//eventWindow = 0;
++	m_eventQueue->append("UICLOSED");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::UiWatch(QStrList uriList)
++{
++	QStrListIterator it(uriList);
++
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("UIWATCH");
++	for (; it.current(); ++it)
++		m_eventQueue->append(it.current());
++	m_eventQueue->append("");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::UiWatch(QString uri)
++{
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("UIWATCH");
++	m_eventQueue->append(uri);
++	m_eventQueue->append("");
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::UiStopWatchAll()
++{
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("UISTOPWATCHALL");
++	m_eventQueueMutex->unlock();
++}
++
++QString SipContainer::UiSendIMMessage(QString DestUrl, QString CallId, QString Msg)
++{
++	SipCallId sipCallId;
++
++	if (CallId.length() == 0)
++	{
++		sipCallId.Generate(sipThread->getLocalIP());
++		CallId = sipCallId.string();
++	}
++
++	m_eventQueueMutex->lock();
++	m_eventQueue->append("SENDIM");
++	m_eventQueue->append(DestUrl);
++	m_eventQueue->append(CallId);
++	m_eventQueue->append(Msg);
++	m_eventQueueMutex->unlock();
++	return CallId;
++}
++
++
++int SipContainer::GetSipState()
++{
++	int tempState;
++	m_eventQueueMutex->lock();
++	tempState = CallState;
++	m_eventQueueMutex->unlock();
++	return tempState;
++}
++
++bool SipContainer::GetNotification(QString &type, QString &url, QString &param1, QString &param2)
++{
++	bool notifyFlag = false;
++	m_eventQueueMutex->lock();
++
++	if (!m_notifyQueue->empty())
++	{
++		QStringList::Iterator it;
++		notifyFlag = true;
++		it = m_notifyQueue->begin();
++		type = *it;
++		it = m_notifyQueue->remove(it);
++		url = *it;
++		it = m_notifyQueue->remove(it);
++		param1 = *it;
++		it = m_notifyQueue->remove(it);
++		param2 = *it;
++		m_notifyQueue->remove(it);
++	}
++
++	m_eventQueueMutex->unlock();
++	return notifyFlag;
++}
++
++void SipContainer::GetRegistrationStatus(bool &Registered, QString &RegisteredTo, QString &RegisteredAs)
++{
++	m_eventQueueMutex->lock();
++	Registered = regStatus;
++	RegisteredTo = regTo;
++	RegisteredAs = regAs;
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::GetIncomingCaller(QString &u, QString &d, QString &l, bool &a)
++{
++	m_eventQueueMutex->lock();
++	u = callerUser;
++	d = callerName;
++	l = callerUrl;
++	a = inAudioOnly;
++	m_eventQueueMutex->unlock();
++}
++
++void SipContainer::GetSipSDPDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes)
++{
++	m_eventQueueMutex->lock();
++	ip = remoteIp;
++	aport = remoteAudioPort;
++	vport = remoteVideoPort;
++	audPay = audioPayload;
++	audCodec = audioCodec;
++	dtmfPay = dtmfPayload;
++	vidPay = videoPayload;
++	vidCodec = videoCodec;
++	vidRes = videoRes;
++	m_eventQueueMutex->unlock();
++}
++
++QString SipContainer::getLocalIpAddress()
++{
++	return sipThread->getLocalIP();
++}
++
++QString SipContainer::getNatIpAddress()
++{
++	return sipThread->getLocalIP();
++}
++
++
+
+Added: konference/src/sip/sipcontainer.h
+===================================================================
+--- konference/src/sip/sipcontainer.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipcontainer.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,95 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPCONTAINER_H
++#define SIPCONTAINER_H
++
++#include <qstring.h>
++
++#include "sipthread.h"
++
++/**
++ at author Malte B?hme
++*/
++class SipContainer
++{
++public:
++	SipContainer(QObject *parent, int listenPort = 5060);
++	~SipContainer();
++	void PlaceNewCall(QString Mode, QString uri, QString name, bool disableNat);
++	void AnswerRingingCall(QString Mode, bool disableNat);
++	void HangupCall();
++	//used by the SipThread to send events to our parent
++	QObject *getParent(){return m_parent;};
++	void UiOpened(QObject *);
++	void UiClosed();
++	void UiWatch(QStrList uriList);
++	void UiWatch(QString uri);
++	void UiStopWatchAll();
++	QString UiSendIMMessage(QString DestUrl, QString CallId, QString Msg);
++	bool GetNotification(QString &type, QString &url, QString &param1, QString &param2);
++	void GetRegistrationStatus(bool &Registered, QString &RegisteredTo, QString &RegisteredAs);
++	int  GetSipState();
++	void GetIncomingCaller(QString &u, QString &d, QString &l, bool &audOnly);
++	void GetSipSDPDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes);
++	void notifyRegistrationStatus(bool reg, QString To, QString As) { regStatus=reg; regTo=To; regAs=As;}
++	void notifyCallState(int s) { CallState=s;}
++	void notifySDPDetails(QString ip, int aport, int audPay, QString audCodec, int dtmfPay, int vport, int vidPay, QString vidCodec, QString vidRes)
++	{
++		remoteIp=ip; remoteAudioPort=aport; audioPayload=audPay; audioCodec=audCodec;
++		dtmfPayload=dtmfPay; remoteVideoPort=vport; videoPayload=vidPay; videoCodec=vidCodec; videoRes=vidRes;
++	}
++	void notifyCallerDetails(QString cU, QString cN, QString cUrl, bool inAudOnly)
++	{ callerUser=cU; callerName=cN; callerUrl=cUrl; inAudioOnly=inAudOnly; }
++	bool killThread() { return killSipThread; }
++	
++	QString getLocalIpAddress();
++	QString getNatIpAddress();
++
++	QStringList *getEventQueue(){return m_eventQueue;};
++	QStringList *getNotifyQueue(){return m_notifyQueue;};
++	QMutex *getEventQueueMutex(){return m_eventQueueMutex;};
++	
++private:
++	QStringList *m_eventQueue;
++	QStringList *m_notifyQueue;
++	QMutex *m_eventQueueMutex;
++	
++	QObject *m_parent;
++	SipThread *sipThread;
++	bool killSipThread;
++	int CallState;
++	bool regStatus;
++	QString regTo;
++	QString regAs;
++	QString callerUser, callerName, callerUrl;
++	bool inAudioOnly;
++	QString remoteIp;
++	int remoteAudioPort;
++	int remoteVideoPort;
++	int audioPayload;
++	int dtmfPayload;
++	int videoPayload;
++	QString audioCodec;
++	QString videoCodec;
++	QString videoRes;
++};
++
++
++#endif
+
+Modified: konference/src/sip/sipfsm.cpp
+===================================================================
+--- konference/src/sip/sipfsm.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipfsm.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -35,495 +35,39 @@
+ #ifndef WIN32
+ #include <sys/ioctl.h>
+ #include <unistd.h>
+-//#include <pthread.h>
+ #include <netdb.h>
+ #include <netinet/in.h>
+ #include <net/if.h>
+-//#include <linux/sockios.h>
+-//#include <linux/videodev.h>
+-//#include <mythtv/mythcontext.h>
++
+ #include "config.h"
+ #endif
+ 
+-//#ifdef WIN32
+-//#include <winsock2.h>
+-//#include "gcontext.h"
+-//#endif
+-
+ using namespace std;
+ 
+ #include "sipfsm.h"
+ #include "sipsdp.h"
+ #include "sipxpidf.h"
++#include "sipthread.h"
++#include "sipfsmbase.h"
++#include "sipcall.h"
+ 
+ // Static variables for the debug file used
+-QFile *debugFile;
+-QTextStream *debugStream;
+-QObject *eventWindow;
+-QStringList EventQ;
+-QStringList NotifyQ;
+-QMutex EventQLock;
+-QString localIp;
+-QString natIp;
+ 
+-
+-
+ /**********************************************************************
+-SipContainer
+- 
+-This is a container class that runs the SIP protocol stack within a 
+-separate thread and controls communication with it. This is done
+-such that the SIP protocol stack can run in the background regardless
+-of which Myth frontend has focus.
+- 
+-**********************************************************************/
+-
+-SipContainer::SipContainer(int listenPort)
+-{
+-	killSipThread = false;
+-	CallState = -1;
+-	eventWindow = 0;
+-
+-	sipThread = new SipThread(this);
+-	sipThread->start();
+-}
+-
+-SipContainer::~SipContainer()
+-{
+-	killSipThread = true;
+-	sipThread->wait();
+-	delete sipThread;
+-}
+-
+-void SipContainer::PlaceNewCall(QString Mode, QString uri, QString name, bool disableNat)
+-{
+-	EventQLock.lock();
+-	EventQ.append("PLACECALL");
+-	EventQ.append(Mode);
+-	EventQ.append(uri);
+-	EventQ.append(name);
+-	EventQ.append(disableNat ? "DisableNAT" : "EnableNAT");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::AnswerRingingCall(QString Mode, bool disableNat)
+-{
+-	EventQLock.lock();
+-	EventQ.append("ANSWERCALL");
+-	EventQ.append(Mode);
+-	EventQ.append(disableNat ? "DisableNAT" : "EnableNAT");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::HangupCall()
+-{
+-	EventQLock.lock();
+-	EventQ.append("HANGUPCALL");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::UiOpened(QObject *callingApp)
+-{
+-	EventQLock.lock();
+-	eventWindow = callingApp;
+-	EventQ.append("UIOPENED");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::UiClosed()
+-{
+-	EventQLock.lock();
+-	eventWindow = 0;
+-	EventQ.append("UICLOSED");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::UiWatch(QStrList uriList)
+-{
+-	QStrListIterator it(uriList);
+-
+-	EventQLock.lock();
+-	EventQ.append("UIWATCH");
+-	for (; it.current(); ++it)
+-		EventQ.append(it.current());
+-	EventQ.append("");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::UiWatch(QString uri)
+-{
+-	EventQLock.lock();
+-	EventQ.append("UIWATCH");
+-	EventQ.append(uri);
+-	EventQ.append("");
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::UiStopWatchAll()
+-{
+-	EventQLock.lock();
+-	EventQ.append("UISTOPWATCHALL");
+-	EventQLock.unlock();
+-}
+-
+-QString SipContainer::UiSendIMMessage(QString DestUrl, QString CallId, QString Msg)
+-{
+-	SipCallId sipCallId;
+-
+-	if (CallId.length() == 0)
+-	{
+-		sipCallId.Generate(localIp);
+-		CallId = sipCallId.string();
+-	}
+-
+-	EventQLock.lock();
+-	EventQ.append("SENDIM");
+-	EventQ.append(DestUrl);
+-	EventQ.append(CallId);
+-	EventQ.append(Msg);
+-	EventQLock.unlock();
+-	return CallId;
+-}
+-
+-
+-int SipContainer::GetSipState()
+-{
+-	int tempState;
+-	EventQLock.lock();
+-	tempState = CallState;
+-	EventQLock.unlock();
+-	return tempState;
+-}
+-
+-bool SipContainer::GetNotification(QString &type, QString &url, QString &param1, QString &param2)
+-{
+-	bool notifyFlag = false;
+-	EventQLock.lock();
+-
+-	if (!NotifyQ.empty())
+-	{
+-		QStringList::Iterator it;
+-		notifyFlag = true;
+-		it = NotifyQ.begin();
+-		type = *it;
+-		it = NotifyQ.remove(it);
+-		url = *it;
+-		it = NotifyQ.remove(it);
+-		param1 = *it;
+-		it = NotifyQ.remove(it);
+-		param2 = *it;
+-		NotifyQ.remove(it);
+-	}
+-
+-	EventQLock.unlock();
+-	return notifyFlag;
+-}
+-
+-void SipContainer::GetRegistrationStatus(bool &Registered, QString &RegisteredTo, QString &RegisteredAs)
+-{
+-	EventQLock.lock();
+-	Registered = regStatus;
+-	RegisteredTo = regTo;
+-	RegisteredAs = regAs;
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::GetIncomingCaller(QString &u, QString &d, QString &l, bool &a)
+-{
+-	EventQLock.lock();
+-	u = callerUser;
+-	d = callerName;
+-	l = callerUrl;
+-	a = inAudioOnly;
+-	EventQLock.unlock();
+-}
+-
+-void SipContainer::GetSipSDPDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes)
+-{
+-	EventQLock.lock();
+-	ip = remoteIp;
+-	aport = remoteAudioPort;
+-	vport = remoteVideoPort;
+-	audPay = audioPayload;
+-	audCodec = audioCodec;
+-	dtmfPay = dtmfPayload;
+-	vidPay = videoPayload;
+-	vidCodec = videoCodec;
+-	vidRes = videoRes;
+-	EventQLock.unlock();
+-}
+-
+-QString SipContainer::getLocalIpAddress()
+-{
+-	return localIp;
+-}
+-
+-QString SipContainer::getNatIpAddress()
+-{
+-	return natIp;
+-}
+-
+-
+-/**********************************************************************
+-SipThread
+- 
+-The main SIP thread that polls for events and handles communication
+-with the user via the SipContainer class
+-**********************************************************************/
+-
+-void SipThread::run()
+-{
+-	SipThreadWorker();
+-}
+-
+-void SipThread::SipThreadWorker()
+-{
+-	FrontEndActive = false;
+-	rnaTimer = -1;
+-	// Open a file for writing debug info into
+-	char *homeDir = getenv("HOME");
+-	QString debugFileName = QString(homeDir) + "/.mythtv/MythPhone/siplog.txt";
+-	debugFile = new QFile(debugFileName);
+-	if (debugFile->open(IO_WriteOnly))
+-		debugStream = new QTextStream (debugFile);
+-
+-	SipFsm *sipFsm = new SipFsm();
+-
+-	if (sipFsm->SocketOpenedOk())
+-	{
+-		while(!sipContainer->killThread())
+-		{
+-			int OldCallState = CallState;
+-
+-			// This blocks for timeout or data in Linux
+-			CheckNetworkEvents(sipFsm);
+-			CheckUIEvents(sipFsm);
+-			CheckRegistrationStatus(sipFsm); // Probably don't need to do this every 1/2 sec but this is a fallout of a non event-driven arch.
+-			sipFsm->HandleTimerExpiries();
+-			ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
+-
+-			// A Ring No Answer timer runs to send calls to voicemail after x seconds
+-			if ((CallState == SIP_ICONNECTING) && (rnaTimer != -1))
+-			{
+-				if (--rnaTimer < 0)
+-				{
+-					rnaTimer = -1;
+-					//vxmlCallActive = true;
+-					sipFsm->Answer(true, "", false);
+-				}
+-			}
+-
+-			ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
+-
+-			EventQLock.lock();
+-			if ((OldCallState != CallState) && (eventWindow))
+-				QApplication::postEvent(eventWindow, new SipEvent(SipEvent::SipStateChange));
+-			EventQLock.unlock();
+-		}
+-	}
+-
+-	delete sipFsm;
+-	if (debugStream)
+-		delete debugStream;
+-	if (debugFile)
+-	{
+-		debugFile->close();
+-		delete debugFile;
+-	}
+-}
+-
+-void SipThread::CheckUIEvents(SipFsm *sipFsm)
+-{
+-	QString event;
+-	QStringList::Iterator it;
+-
+-	// Check why we awoke
+-	event = "";
+-	EventQLock.lock();
+-	if (!EventQ.empty())
+-	{
+-		it = EventQ.begin();
+-		event = *it;
+-		EventQ.remove(it);
+-	}
+-	EventQLock.unlock();
+-
+-	if (event == "PLACECALL")
+-	{
+-		EventQLock.lock();
+-		it = EventQ.begin();
+-		QString Mode = *it;
+-		it = EventQ.remove(it);
+-		QString Uri = *it;
+-		it = EventQ.remove(it);
+-		QString Name = *it;
+-		it = EventQ.remove(it);
+-		QString UseNat = *it;
+-		EventQ.remove(it);
+-		EventQLock.unlock();
+-		sipFsm->NewCall(Mode == "AUDIOONLY" ? true : false, Uri, Name, Mode, UseNat == "DisableNAT" ? true : false);
+-	}
+-	else if (event == "ANSWERCALL")
+-	{
+-		EventQLock.lock();
+-		it = EventQ.begin();
+-		QString Mode = *it;
+-		it = EventQ.remove(it);
+-		QString UseNat = *it;
+-		EventQ.remove(it);
+-		EventQLock.unlock();
+-		sipFsm->Answer(Mode == "AUDIOONLY" ? true : false, Mode, UseNat == "DisableNAT" ? true : false);
+-	}
+-	else if (event == "HANGUPCALL")
+-		sipFsm->HangUp();
+-	else if (event == "UIOPENED")
+-	{
+-		sipFsm->StatusChanged("OPEN");
+-		FrontEndActive = true;
+-	}
+-	else if (event == "UICLOSED")
+-	{
+-		sipFsm->StatusChanged("CLOSED");
+-		FrontEndActive = false;
+-	}
+-	else if (event == "UIWATCH")
+-	{
+-		QString uri;
+-		do
+-		{
+-			EventQLock.lock();
+-			it = EventQ.begin();
+-			uri = *it;
+-			EventQ.remove(it);
+-			EventQLock.unlock();
+-			if (uri.length() > 0)
+-				sipFsm->CreateWatcherFsm(uri);
+-		}
+-		while (uri.length() > 0);
+-	}
+-	else if (event == "UISTOPWATCHALL")
+-		sipFsm->StopWatchers();
+-	else if (event == "SENDIM")
+-	{
+-		EventQLock.lock();
+-		it = EventQ.begin();
+-		QString DestUrl = *it;
+-		it = EventQ.remove(it);
+-		QString CallId = *it;
+-		it = EventQ.remove(it);
+-		QString imMsg = *it;
+-		EventQ.remove(it);
+-		EventQLock.unlock();
+-		sipFsm->SendIM(DestUrl, CallId, imMsg);
+-	}
+-
+-	ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
+-}
+-
+-void SipThread::CheckRegistrationStatus(SipFsm *sipFsm)
+-{
+-	sipContainer->notifyRegistrationStatus(sipFsm->isRegistered(), sipFsm->registeredTo(),
+-	                                       sipFsm->registeredAs());
+-}
+-
+-void SipThread::CheckNetworkEvents(SipFsm *sipFsm)
+-{
+-	// Check for incoming SIP messages
+-	sipFsm->CheckRxEvent();
+-
+-	// We only handle state changes in the "primary" call; we ignore additional calls which are
+-	// currently just rejected with busy
+-	ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
+-}
+-
+-
+-void SipThread::ChangePrimaryCallState(SipFsm *sipFsm, int NewState)
+-{
+-	int OldState = CallState;
+-	CallState = NewState;
+-	sipContainer->notifyCallState(CallState);
+-
+-	if (OldState != CallState)
+-	{
+-		if (CallState == SIP_IDLE)
+-		{
+-			callerUser = "";
+-			callerName = "";
+-			callerUrl = "";
+-			inAudioOnly = true;
+-			sipContainer->notifyCallerDetails(callerUser, callerName, callerUrl, inAudioOnly);
+-			remoteIp = "0.0.0.0";
+-			remoteAudioPort = -1;
+-			remoteVideoPort = -1;
+-			audioPayload = -1;
+-			dtmfPayload = -1;
+-			videoPayload = -1;
+-			audioCodec = "";
+-			videoCodec = "";
+-			videoRes = "";
+-			sipContainer->notifySDPDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
+-		}
+-
+-		if (CallState == SIP_ICONNECTING)
+-		{
+-			// new incoming call; get the caller info
+-			EventQLock.lock();
+-			SipCall *call = sipFsm->MatchCall(sipFsm->getPrimaryCall());
+-			if (call != 0)
+-			{
+-				call->GetIncomingCaller(callerUser, callerName, callerUrl, inAudioOnly);
+-				sipContainer->notifyCallerDetails(callerUser, callerName, callerUrl, inAudioOnly);
+-			}
+-			EventQLock.unlock();
+-
+-			rnaTimer = 10;//TODO atoi((const char *)gContext->GetSetting("TimeToAnswer")) * SIP_POLL_PERIOD;
+-		}
+-		else
+-			rnaTimer = -1;
+-
+-
+-		if (CallState == SIP_CONNECTED)
+-		{
+-			// connected call; get the SDP info
+-			EventQLock.lock();
+-			SipCall *call = sipFsm->MatchCall(sipFsm->getPrimaryCall());
+-			if (call != 0)
+-			{
+-				call->GetSdpDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
+-				sipContainer->notifySDPDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
+-
+-			}
+-			EventQLock.unlock();
+-
+-		}
+-
+-		//TODO sipstack should not have to know anything about the gui!!!
+-		if ((CallState == SIP_ICONNECTING) && (FrontEndActive == false))
+-		{
+-			// No application running to tell of the incoming call
+-			// Either alert via on-screen popup or send to voicemail
+-			//			SipNotify *notify = new SipNotify();
+-			//			notify->Display(callerName, callerUrl);
+-			//			delete notify;
+-		}
+-	}
+-}
+-
+-
+-/**********************************************************************
+ SipFsm
+  
+ This class forms the container class for the SIP FSM, and creates call
+ instances which handle actual events.
+ **********************************************************************/
+ 
+-SipFsm::SipFsm(QWidget *parent, const char *name)
++SipFsm::SipFsm(SipContainer *container, QWidget *parent, const char *name)
+ 		: QWidget( parent, name )
+ {
+ 	callCount = 0;
+ 	primaryCall = -1;
+ 	PresenceStatus = "CLOSED";
+-
++	m_sipContainer = container;
++	
+ 	sipSocket = 0;
+ 	localPort = 5060;//TODO atoi((const char *)gContext->GetSetting("SipLocalPort"));
+ 
+@@ -531,7 +75,7 @@
+ 	natIp = DetermineNatAddress();
+ 	if (natIp.length() == 0)
+ 		natIp = localIp;
+-	SipFsm::Debug(SipDebugEvent::SipDebugEv, QString("SIP listening on IP Address ") + localIp + ":" + QString::number(localPort) + " NAT address " + natIp + "\n\n");
++//	SipFsm::Debug(SipDebugEvent::SipDebugEv, QString("SIP listening on IP Address ") + localIp + ":" + QString::number(localPort) + " NAT address " + natIp + "\n\n");
+ 	cout << "SIP listening on IP Address " << localIp << ":" << localPort << " NAT address " << natIp << endl;
+ 
+ 	// Create the timer list
+@@ -569,17 +113,6 @@
+ 	CloseSocket();
+ }
+ 
+-void SipFsm::Debug(SipDebugEvent::Type t, QString dbg)
+-{
+-#ifdef WIN32
+-	if (eventWindow)
+-		QApplication::postEvent(eventWindow, new SipDebugEvent(t, dbg));
+-#else
+-	if ((debugStream) && ((t == SipDebugEvent::SipTraceRxEv) || (t == SipDebugEvent::SipTraceTxEv)))
+-		*debugStream << dbg;
+-#endif
+-}
+-
+ QString SipFsm::OpenSocket(int Port)
+ {
+ 	sipSocket = new QSocketDevice (QSocketDevice::Datagram);
+@@ -708,7 +241,7 @@
+ 	{
+ 		QHostAddress dest;
+ 		dest.setAddress(destIP);
+-		SipFsm::Debug(SipDebugEvent::SipTraceTxEv, QDateTime::currentDateTime().toString() + " Sent to " + destIP + ":" + QString::number(destPort) + "...\n" + Msg + "\n");
++		//SipFsm::Debug(SipDebugEvent::SipTraceTxEv, QDateTime::currentDateTime().toString() + " Sent to " + destIP + ":" + QString::number(destPort) + "...\n" + Msg + "\n");
+ 		sipSocket->writeBlock((const char *)Msg, Msg.length(), dest, destPort);
+ 	}
+ 	else
+@@ -724,7 +257,7 @@
+ 		if (len > 0)
+ 		{
+ 			rxMsg[len] = 0;
+-			SipFsm::Debug(SipDebugEvent::SipTraceRxEv, QDateTime::currentDateTime().toString() + " Received: Len " + QString::number(len) + "\n" + rxMsg + "\n");
++			//SipFsm::Debug(SipDebugEvent::SipTraceRxEv, QDateTime::currentDateTime().toString() + " Received: Len " + QString::number(len) + "\n" + rxMsg + "\n");
+ 			sipMsg.decode(rxMsg);
+ 			return true;
+ 		}
+@@ -867,17 +400,14 @@
+ 
+ void SipFsm::SetNotification(QString type, QString uri, QString param1, QString param2)
+ {
+-	EventQLock.lock();
+-	if (eventWindow) // Is there someone listening?
+-	{
+-		NotifyQ.append(type);
+-		NotifyQ.append(uri);
+-		NotifyQ.append(param1);
+-		NotifyQ.append(param2);
++	m_sipContainer->getEventQueueMutex()->lock();
++		m_sipContainer->getNotifyQueue()->append(type);
++		m_sipContainer->getNotifyQueue()->append(uri);
++		m_sipContainer->getNotifyQueue()->append(param1);
++		m_sipContainer->getNotifyQueue()->append(param2);
+ 
+-		QApplication::postEvent(eventWindow, new SipEvent(SipEvent::SipNotification));
+-	}
+-	EventQLock.unlock();
++		QApplication::postEvent(m_sipContainer->getParent(), new SipEvent(SipEvent::SipNotification));
++	m_sipContainer->getEventQueueMutex()->unlock();
+ }
+ 
+ 
+@@ -925,7 +455,7 @@
+ 	SipFsmBase *it;
+ 	for (it=FsmList.first(); it; it=FsmList.next())
+ 		if ((it->type() == "CALL") && (it->getCallRef() == cr))
+-			return (dynamic_cast<SipCall *>(it));
++			return (dynamic_cast<SipCall *>(it));//TODO
+ 	return 0;
+ }
+ 
+@@ -1058,900 +588,7 @@
+ 			it->FSM(SIP_PRESENCE_CHANGE, 0, newStatus);
+ }
+ 
+-
+-
+-
+ /**********************************************************************
+-SipFsmBase
+- 
+-A base class for FSM which defines a set of default procedures that are
+-used by the derived classes.
+-**********************************************************************/
+-
+-SipFsmBase::SipFsmBase(SipFsm *p)
+-{
+-	parent = p;
+-	remoteUrl = 0;
+-	toUrl = 0;
+-	contactUrl = 0;
+-	recRouteUrl = 0;
+-	remoteTag = "";
+-	remoteEpid = "";
+-	rxedTo = "";
+-	rxedFrom = "";
+-	MyUrl = 0;
+-	MyContactUrl = 0;
+-	sentAuthenticated = false;
+-}
+-
+-SipFsmBase::~SipFsmBase()
+-{
+-	if (remoteUrl != 0)
+-		delete remoteUrl;
+-	if (toUrl != 0)
+-		delete toUrl;
+-	if (contactUrl != 0)
+-		delete contactUrl;
+-	if (recRouteUrl != 0)
+-		delete recRouteUrl;
+-	if (MyUrl != 0)
+-		delete MyUrl;
+-	if (MyContactUrl != 0)
+-		delete MyContactUrl;
+-
+-	remoteUrl = 0;
+-	toUrl = 0;
+-	contactUrl = 0;
+-	recRouteUrl = 0;
+-	MyUrl = 0;
+-	MyContactUrl = 0;
+-}
+-
+-bool SipFsmBase::Retransmit(bool force)
+-{
+-	if (force || (t1 < 8000))
+-	{
+-		t1 *= 2;
+-		if ((retx.length() > 0) && (retxIp.length() > 0))
+-		{
+-			parent->Transmit(retx, retxIp, retxPort);
+-			return true;
+-		}
+-	}
+-	return false;
+-}
+-
+-void SipFsmBase::ParseSipMsg(int Event, SipMsg *sipMsg)
+-{
+-	// Pull out Remote TAG
+-	remoteTag = (SIP_CMD(Event)) ? sipMsg->getFromTag() : sipMsg->getToTag();
+-	remoteEpid = (SIP_CMD(Event)) ? sipMsg->getFromEpid() : QString("");
+-
+-	// Pull out VIA, To and From information from CMDs to send back in Status
+-	if (SIP_CMD(Event))
+-	{
+-		rxedTo   = sipMsg->getCompleteTo();
+-		rxedFrom = sipMsg->getCompleteFrom();
+-		RecRoute = sipMsg->getCompleteRR();
+-		Via      = sipMsg->getCompleteVia();
+-		CallId   = *(sipMsg->getCallId());
+-		viaIp    = sipMsg->getViaIp();
+-		viaPort  = sipMsg->getViaPort();
+-		if (remoteUrl == 0)
+-			remoteUrl = new SipUrl(sipMsg->getFromUrl());
+-		if (toUrl == 0)
+-			toUrl = new SipUrl(sipMsg->getToUrl());
+-	}
+-
+-	// Pull out Contact info
+-	SipUrl *s;
+-	if ((s = sipMsg->getContactUrl()) != 0)
+-	{
+-		if (contactUrl)
+-			delete contactUrl;
+-		contactUrl = new SipUrl(s);
+-	}
+-
+-	// Pull out Record Route info
+-	if ((s = sipMsg->getRecRouteUrl()) != 0)
+-	{
+-		if (recRouteUrl)
+-			delete recRouteUrl;
+-		recRouteUrl = new SipUrl(s);
+-	}
+-}
+-
+-void SipFsmBase::BuildSendStatus(int Code, QString Method, int statusCseq, int Option, int statusExpires, QString sdp)
+-{
+-	if (remoteUrl == 0)
+-	{
+-		cerr << "URL variables not setup\n";
+-		return;
+-	}
+-
+-	SipMsg Status(Method);
+-	Status.addStatusLine(Code);
+-	if (RecRoute.length() > 0)
+-		Status.addRRCopy(RecRoute);
+-	if (Via.length() > 0)
+-		Status.addViaCopy(Via);
+-	Status.addFromCopy(rxedFrom);
+-	Status.addToCopy(rxedTo);
+-	Status.addCallId(&CallId);
+-	Status.addCSeq(statusCseq);
+-	if ((Option & SIP_OPT_EXPIRES) && (statusExpires >= 0))
+-		Status.addExpires(statusExpires);
+-
+-	if (Option & SIP_OPT_ALLOW) // Add my Contact URL to the message
+-		Status.addAllow();
+-	if (Option & SIP_OPT_CONTACT) // Add my Contact URL to the message
+-		Status.addContact(*MyContactUrl);
+-	if (Option & SIP_OPT_SDP) // Add an SDP to the message
+-		Status.addContent("application/sdp", sdp);
+-	else
+-		Status.addNullContent();
+-
+-	// Send STATUS messages to the VIA address
+-	parent->Transmit(Status.string(), retxIp = viaIp, retxPort = viaPort);
+-
+-	if (((Code >= 200) && (Code <= 299)) && (Method == "INVITE"))
+-	{
+-		retx = Status.string();
+-		t1 = 500;
+-		(parent->Timer())->Start(this, t1, SIP_RETX);
+-	}
+-}
+-
+-
+-void SipFsmBase::DebugFsm(int event, int old_state, int new_state)
+-{
+-	SipFsm::Debug(SipDebugEvent::SipDebugEv, "SIP FSM: Event " + EventtoString(event) + " : "
+-	              + StatetoString(old_state) + " -> " + StatetoString(new_state) + "\n");
+-}
+-
+-
+-QString SipFsmBase::EventtoString(int Event)
+-{
+-	switch (Event)
+-	{
+-	case SIP_OUTCALL:             return "OUTCALL";
+-	case SIP_REGISTER:            return "REGISTER";
+-	case SIP_INVITE:              return "INVITE";
+-	case SIP_INVITESTATUS_3456xx: return "INVST-3456xx";
+-	case SIP_INVITESTATUS_2xx:    return "INVSTAT-2xx";
+-	case SIP_INVITESTATUS_1xx:    return "INVSTAT-1xx";
+-	case SIP_ANSWER:              return "ANSWER";
+-	case SIP_ACK:                 return "ACK";
+-	case SIP_BYE:                 return "BYE";
+-	case SIP_CANCEL:              return "CANCEL";
+-	case SIP_HANGUP:              return "HANGUP";
+-	case SIP_BYESTATUS:           return "BYESTATUS";
+-	case SIP_CANCELSTATUS:        return "CANCSTATUS";
+-	case SIP_RETX:                return "RETX";
+-	case SIP_REGISTRAR_TEXP:      return "REGITRAR_T";
+-	case SIP_REGSTATUS:           return "REG_STATUS";
+-	case SIP_REG_TREGEXP:         return "REG_TEXP";
+-	case SIP_SUBSCRIBE:           return "SUBSCRIBE";
+-	case SIP_SUBSTATUS:           return "SUB_STATUS";
+-	case SIP_NOTIFY:              return "NOTIFY";
+-	case SIP_NOTSTATUS:           return "NOT_STATUS";
+-	case SIP_PRESENCE_CHANGE:     return "PRESENCE_CHNG";
+-	case SIP_SUBSCRIBE_EXPIRE:    return "SUB_EXPIRE";
+-	case SIP_WATCH:               return "WATCH";
+-	case SIP_STOPWATCH:           return "STOPWATCH";
+-	case SIP_MESSAGE:             return "MESSAGE";
+-	case SIP_MESSAGESTATUS:       return "MESSAGESTATUS";
+-	case SIP_INFO:                return "INFO";
+-	case SIP_INFOSTATUS:          return "INFOSTATUS";
+-	case SIP_IM_TIMEOUT:          return "IM_TIMEOUT";
+-	case SIP_USER_MESSAGE:        return "USER_IM";
+-	case SIP_KICKWATCH:           return "KICKWATCH";
+-	default:
+-		break;
+-	}
+-	return "Unknown-Event";
+-}
+-
+-
+-QString SipFsmBase::StatetoString(int S)
+-{
+-	switch (S)
+-	{
+-	case SIP_IDLE:              return "IDLE";
+-	case SIP_OCONNECTING1:      return "OCONNECT1";
+-	case SIP_OCONNECTING2:      return "OCONNECT2";
+-	case SIP_ICONNECTING:       return "ICONNECT";
+-	case SIP_CONNECTED:         return "CONNECTED";
+-	case SIP_DISCONNECTING:     return "DISCONNECT ";
+-	case SIP_CONNECTED_VXML:    return "CONNECT-VXML";  // A false state! Only used to indicate to frontend
+-	case SIP_SUB_SUBSCRIBED:    return "SUB_SUBSCRIBED";
+-	case SIP_WATCH_TRYING:      return "WTCH_TRYING";
+-	case SIP_WATCH_ACTIVE:      return "WTCH_ACTIVE";
+-	case SIP_WATCH_STOPPING:    return "WTCH_STOPPING";
+-	case SIP_WATCH_HOLDOFF:     return "WTCH_HOLDDOFF";
+-	case SIP_IM_ACTIVE:         return "IM_ACTIVE";
+-
+-	default:
+-		break;
+-	}
+-	return "Unknown-State";
+-}
+-
+-
+-
+-
+-
+-
+-/**********************************************************************
+-SipCall
+- 
+-This class handles a per call instance of the FSM
+-**********************************************************************/
+-
+-SipCall::SipCall(QString localIp, QString natIp, int localPort, int n, SipFsm *par) : SipFsmBase(par)
+-{
+-	callRef = n;
+-	sipLocalIP = localIp;
+-	sipNatIP = natIp;
+-	sipLocalPort = localPort;
+-	initialise();
+-}
+-
+-SipCall::~SipCall()
+-{}
+-
+-
+-void SipCall::initialise()
+-{
+-	// Initialise Local Parameters.  We get info from the database on every new
+-	// call in case it has been changed
+-	myDisplayName = "maldn";//TODO gContext->GetSetting("MySipName");
+-	sipUsername = "Konference";//gContext->GetSetting("MySipUser");  -- Note; this is really not needed & is too much config
+-
+-	// Get other params - done on a per call basis so config changes take effect immediately
+-	sipAudioRtpPort = 21232;//TODO atoi((const char *)gContext->GetSetting("AudioLocalPort"));
+-	sipVideoRtpPort = 21234;//TODO atoi((const char *)gContext->GetSetting("VideoLocalPort"));
+-
+-	sipRtpPacketisation = 20;
+-	State = SIP_IDLE;
+-	remoteAudioPort = 0;
+-	remoteVideoPort = 0;
+-	remoteIp = "";
+-	audioPayloadIdx = -1;
+-	videoPayload = -1;
+-	dtmfPayload = -1;
+-	remoteIp = "";
+-	allowVideo = true;
+-	disableNat = false;
+-	rxVideoResolution = "CIF";
+-	txVideoResolution = "CIF";
+-	viaRegProxy = 0;
+-
+-	MyUrl = 0;
+-	MyContactUrl = 0;
+-
+-	// Read the codec priority list from the database into an array
+-	CodecList[0].Payload = 0;
+-	CodecList[0].Encoding = "PCMU";
+-	int n=0;
+-	QString CodecListString = "G.711u;G.711a;GSM";//TODO gContext->GetSetting("CodecPriorityList");
+-	while ((CodecListString.length() > 0) && (n < MAX_AUDIO_CODECS-1))
+-	{
+-		int sep = CodecListString.find(';');
+-		QString CodecStr = CodecListString;
+-		if (sep != -1)
+-			CodecStr = CodecListString.left(sep);
+-		if (CodecStr == "G.711u")
+-		{
+-			CodecList[n].Payload = 0;
+-			CodecList[n++].Encoding = "PCMU";
+-		}
+-		else if (CodecStr == "G.711a")
+-		{
+-			CodecList[n].Payload = 8;
+-			CodecList[n++].Encoding = "PCMA";
+-		}
+-		else if (CodecStr == "GSM")
+-		{
+-			CodecList[n].Payload = 3;
+-			CodecList[n++].Encoding = "GSM";
+-		}
+-		else
+-			cout << "Unknown codec " << CodecStr << " in Codec Priority List\n";
+-		if (sep != -1)
+-		{
+-			QString tempStr = CodecListString.mid(sep+1);
+-			CodecListString = tempStr;
+-		}
+-		else
+-			break;
+-	}
+-	CodecList[n].Payload = -1;
+-}
+-
+-
+-int SipCall::FSM(int Event, SipMsg *sipMsg, void *Value)
+-{
+-	(void)Value;
+-	int oldState = State;
+-
+-	// Parse SIP messages for general relevant data
+-	if (sipMsg != 0)
+-		ParseSipMsg(Event, sipMsg);
+-
+-
+-	switch(Event | State)
+-	{
+-	case SIP_IDLE_BYE:
+-		BuildSendStatus(481, "BYE", sipMsg->getCSeqValue()); //481 Call/Transaction does not exist
+-		State = SIP_IDLE;
+-		break;
+-	case SIP_IDLE_INVITESTATUS_1xx:
+-	case SIP_IDLE_INVITESTATUS_2xx:
+-	case SIP_IDLE_INVITESTATUS_3456:
+-		// Check if we are being a proxy
+-		if (sipMsg->getViaIp() == sipLocalIP)
+-		{
+-			ForwardMessage(sipMsg);
+-			State = SIP_IDLE;
+-		}
+-		break;
+-	case SIP_IDLE_OUTCALL:
+-		cseq = 1;
+-		remoteUrl = new SipUrl(DestinationUri, "");
+-		if ((remoteUrl->getHostIp()).length() == 0)
+-		{
+-			cout << "SIP: Tried to call " << DestinationUri << " but can't get destination IP address\n";
+-			State = SIP_IDLE;
+-			break;
+-		}
+-
+-#ifdef SIPREGISTRAR
+-		// If the domain matches the local registrar, see if user is registered
+-		if ((remoteUrl->getHost() == "volkaerts") &&
+-		        (!(parent->getRegistrar())->getRegisteredContact(remoteUrl)))
+-		{
+-			cout << DestinationUri << " is not registered here\n";
+-			break;
+-		}
+-#endif
+-		if (UseNat(remoteUrl->getHostIp()))
+-			sipLocalIP = sipNatIP;
+-		MyContactUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
+-		if (viaRegProxy == 0)
+-			MyUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
+-		else
+-			MyUrl = new SipUrl(myDisplayName, viaRegProxy->registeredAs(), viaRegProxy->registeredTo(), viaRegProxy->registeredPort());
+-		BuildSendInvite(0);
+-		State = SIP_OCONNECTING1;
+-		break;
+-	case SIP_IDLE_INVITE:
+-		cseq = sipMsg->getCSeqValue();
+-		if (UseNat(remoteUrl->getHostIp()))
+-			sipLocalIP = sipNatIP;
+-		MyContactUrl = new SipUrl(myDisplayName, sipUsername, sipLocalIP, sipLocalPort);
+-#ifdef SIPREGISTRAR
+-		if ((toUrl->getUser() == sipUsername)) && (toUrl->getHost() ==  "Volkaerts"))
+-#endif
+-		{
+-			if (parent->numCalls() > 1)     // Check there are no active calls, and give busy if there is
+-			{
+-				BuildSendStatus(486, "INVITE", sipMsg->getCSeqValue()); //486 Busy Here
+-				State = SIP_DISCONNECTING;
+-			}
+-			else
+-			{
+-				GetSDPInfo(sipMsg);
+-				if (audioPayloadIdx != -1) // INVITE had a codec we support; proces
+-				{
+-					AlertUser(sipMsg);
+-					BuildSendStatus(100, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); //100 Trying
+-					BuildSendStatus(180, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); //180 Ringing
+-					State = SIP_ICONNECTING;
+-				}
+-				else
+-				{
+-					BuildSendStatus(488, "INVITE", sipMsg->getCSeqValue()); //488 Not Acceptable Here
+-					State = SIP_DISCONNECTING;
+-				}
+-			}
+-		}
+-
+-#ifdef SIPREGISTRAR
+-		// Not for me, see if it is for a registered UA
+-		else if ((toUrl->getHost() == "volkaerts") && ((parent->getRegistrar())->getRegisteredContact(toUrl)))
+-		{
+-			ForwardMessage(sipMsg);
+-			State = SIP_IDLE;
+-		}
+-
+-		// Not for me and not for anyone registered here
+-		else
+-		{
+-			BuildSendStatus(404, "INVITE", sipMsg->getCSeqValue()); //404 Not Found
+-			State = SIP_DISCONNECTING;
+-		}
+-#endif
+-		break;
+-	case SIP_OCONNECTING1_INVITESTATUS_1xx:
+-			(parent->Timer())->Stop(this, SIP_RETX);
+-			parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
+-			State = SIP_OCONNECTING2;
+-			break;
+-		case SIP_OCONNECTING1_INVITESTATUS_3456:
+-				(parent->Timer())->Stop(this, SIP_RETX);
+-				parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
+-				// Fall through
+-			case SIP_OCONNECTING2_INVITESTATUS_3456:
+-					if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
+-						        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
+-					{
+-						if (!sentAuthenticated) // This avoids loops where we are not authenticating properly
+-						{
+-							BuildSendAck();
+-							BuildSendInvite(sipMsg);
+-							State = SIP_OCONNECTING1;
+-						}
+-					}
+-					else
+-					{
+-						BuildSendAck();
+-						State = SIP_IDLE;
+-					}
+-		break;
+-	case SIP_OCONNECTING1_INVITESTATUS_2xx:
+-			(parent->Timer())->Stop(this, SIP_RETX);
+-			// Fall through
+-		case SIP_OCONNECTING2_INVITESTATUS_2xx:
+-				GetSDPInfo(sipMsg);
+-				if (audioPayloadIdx != -1) // INVITE had a codec we support; proces
+-			{
+-				BuildSendAck();
+-					State = SIP_CONNECTED;
+-				}
+-				else
+-				{
+-					cerr << "2xx STATUS did not contain a valid Audio codec\n";
+-					BuildSendAck();  // What is the right thing to do here?
+-					BuildSendBye(0);
+-					State = SIP_DISCONNECTING;
+-				}
+-		break;
+-	case SIP_OCONNECTING1_INVITE:
+-			// This is usually because we sent the INVITE to ourselves, & when we receive it matches the call-id for this call leg
+-			(parent->Timer())->Stop(this, SIP_RETX);
+-			BuildSendCancel(0);
+-			State = SIP_DISCONNECTING;
+-			break;
+-		case SIP_OCONNECTING1_HANGUP:
+-				(parent->Timer())->Stop(this, SIP_RETX);
+-				BuildSendCancel(0);
+-				State = SIP_IDLE;
+-				break;
+-			case SIP_OCONNECTING1_RETX:
+-					if (Retransmit(false))
+-						(parent->Timer())->Start(this, t1, SIP_RETX);
+-						else
+-							State = SIP_IDLE;
+-							break;
+-						case SIP_OCONNECTING2_HANGUP:
+-								BuildSendCancel(0);
+-								State = SIP_DISCONNECTING;
+-								break;
+-							case SIP_ICONNECTING_INVITE:
+-									BuildSendStatus(180, "INVITE", sipMsg->getCSeqValue(), SIP_OPT_CONTACT); // Retxed INVITE, resend 180 Ringing
+-									break;
+-								case SIP_ICONNECTING_ANSWER:
+-										BuildSendStatus(200, "INVITE", cseq, SIP_OPT_SDP | SIP_OPT_CONTACT, -1, BuildSdpResponse());
+-										State = SIP_CONNECTED;
+-										break;
+-									case SIP_ICONNECTING_CANCEL:
+-											BuildSendStatus(200, "CANCEL", sipMsg->getCSeqValue()); //200 Ok
+-											State = SIP_IDLE;
+-											break;
+-										case SIP_CONNECTED_ACK:
+-												(parent->Timer())->Stop(this, SIP_RETX); // Stop resending 200 OKs
+-												break;
+-											case SIP_CONNECTED_INVITESTATUS_2xx:
+-													Retransmit(true); // Resend our ACK
+-													break;
+-												case SIP_CONNECTED_RETX:
+-														if (Retransmit(false))
+-															(parent->Timer())->Start(this, t1, SIP_RETX);
+-															else
+-																State = SIP_IDLE;
+-																break;
+-															case SIP_CONNECTED_BYE:
+-																	(parent->Timer())->Stop(this, SIP_RETX);
+-																	if (sipMsg->getCSeqValue() > cseq)
+-																	{
+-																		cseq = sipMsg->getCSeqValue();
+-																		BuildSendStatus(200, "BYE", cseq); //200 Ok
+-																		State = SIP_IDLE;
+-																	}
+-																	else
+-																		BuildSendStatus(400, "BYE", sipMsg->getCSeqValue()); //400 Bad Request
+-																		break;
+-																	case SIP_CONNECTED_HANGUP:
+-																			BuildSendBye(0);
+-																			State = SIP_DISCONNECTING;
+-																			break;
+-																		case SIP_DISCONNECTING_ACK:
+-																				(parent->Timer())->Stop(this, SIP_RETX);
+-																				State = SIP_IDLE;
+-																				break;
+-																			case SIP_DISCONNECTING_RETX:
+-																					if (Retransmit(false))
+-																						(parent->Timer())->Start(this, t1, SIP_RETX);
+-																						else
+-																							State = SIP_IDLE;
+-																							break;
+-																						case SIP_DISCONNECTING_CANCEL:
+-																								(parent->Timer())->Stop(this, SIP_RETX);
+-																								BuildSendStatus(200, "CANCEL", sipMsg->getCSeqValue()); //200 Ok
+-																								State = SIP_IDLE;
+-																								break;
+-																							case SIP_DISCONNECTING_BYESTATUS:
+-																									(parent->Timer())->Stop(this, SIP_RETX);
+-																									if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
+-																										        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
+-																									{
+-																										if (!sentAuthenticated)
+-																											BuildSendBye(sipMsg);
+-																									}
+-																									else
+-																										State = SIP_IDLE;
+-																										break;
+-																									case SIP_DISCONNECTING_CANCELSTATUS:
+-																											(parent->Timer())->Stop(this, SIP_RETX);
+-																											if (((sipMsg->getStatusCode() == 407) || (sipMsg->getStatusCode() == 401)) &&
+-																												        (viaRegProxy != 0) && (viaRegProxy->isRegistered())) // Authentication Required
+-																											{
+-																												if (!sentAuthenticated)
+-																													BuildSendCancel(sipMsg);
+-																											}
+-																											else
+-																												State = SIP_IDLE;
+-																												break;
+-																											case SIP_DISCONNECTING_BYE:
+-																													(parent->Timer())->Stop(this, SIP_RETX);
+-																													BuildSendStatus(200, "BYE", sipMsg->getCSeqValue()); //200 Ok
+-																													State = SIP_IDLE;
+-																													break;
+-
+-																													// Events ignored in states
+-																												case SIP_OCONNECTING2_INVITESTATUS_1xx:
+-																														parent->SetNotification("CALLSTATUS", "", QString::number(sipMsg->getStatusCode()), sipMsg->getReasonPhrase());
+-																														break;
+-
+-																														// Everything else is an error, just flag it for now
+-																													default:
+-																															SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP CALL FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
+-																															break;
+-																														}
+-
+-	DebugFsm(Event, oldState, State);
+-	return State;
+-}
+-
+-bool SipCall::UseNat(QString destIPAddress)
+-{
+-	(void)destIPAddress;
+-	// User to check subnets but this was a flawed concept; now checks a configuration item per-remote user
+-	return !disableNat;
+-}
+-
+-
+-void SipCall::BuildSendInvite(SipMsg *authMsg)
+-{
+-	if (authMsg == 0)
+-		CallId.Generate(sipLocalIP);
+-
+-	SipMsg Invite("INVITE");
+-	Invite.addRequestLine(*remoteUrl);
+-	Invite.addVia(sipLocalIP, sipLocalPort);
+-	Invite.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
+-	Invite.addTo(*remoteUrl);
+-	Invite.addCallId(&CallId);
+-	Invite.addCSeq(++cseq);
+-	Invite.addUserAgent();
+-
+-	if (authMsg)
+-	{
+-		if (authMsg->getAuthMethod() == "Digest")
+-			Invite.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
+-		else
+-			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
+-		sentAuthenticated = true;
+-	}
+-	else
+-		sentAuthenticated = false;
+-
+-	//Invite.addAllow();
+-	Invite.addContact(*MyContactUrl);
+-	addSdpToInvite(Invite, allowVideo);
+-
+-	parent->Transmit(Invite.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
+-	retx = Invite.string();
+-	t1 = 500;
+-	(parent->Timer())->Start(this, t1, SIP_RETX);
+-}
+-
+-
+-
+-void SipCall::ForwardMessage(SipMsg *msg)
+-{
+-	QString toIp;
+-	int toPort;
+-
+-	if (msg->getMethod() != "STATUS")
+-	{
+-		msg->insertVia(sipLocalIP, sipLocalPort);
+-		toIp = toUrl->getHostIp();
+-		toPort = toUrl->getPort();
+-	}
+-	else
+-	{
+-		msg->removeVia();
+-		toIp = msg->getViaIp();
+-		toPort = msg->getViaPort();
+-	}
+-	parent->Transmit(msg->string(), toIp, toPort);
+-}
+-
+-
+-
+-void SipCall::BuildSendAck()
+-{
+-	if ((MyUrl == 0) || (remoteUrl == 0))
+-	{
+-		cerr << "URL variables not setup\n";
+-		return;
+-	}
+-
+-	SipMsg Ack("ACK");
+-	Ack.addRequestLine(*remoteUrl);
+-	Ack.addVia(sipLocalIP, sipLocalPort);
+-	Ack.addFrom(*MyUrl, "ae1d8a43cf3f4d8a8f4f0e1004", "3622b728e3");
+-	Ack.addTo(*remoteUrl, remoteTag);
+-	Ack.addCallId(&CallId);
+-	Ack.addCSeq(cseq);
+-	Ack.addUserAgent();
+-	Ack.addNullContent();
+-
+-	// Even if we have a contact URL in one of the response messages; we still send the ACK to
+-	// the same place we sent the INVITE to
+-	parent->Transmit(Ack.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
+-	retx = Ack.string();
+-}
+-
+-
+-void SipCall::BuildSendCancel(SipMsg *authMsg)
+-{
+-	if ((MyUrl == 0) || (remoteUrl == 0))
+-	{
+-		cerr << "URL variables not setup\n";
+-		return;
+-	}
+-
+-	SipMsg Cancel("CANCEL");
+-	Cancel.addRequestLine(*remoteUrl);
+-	Cancel.addVia(sipLocalIP, sipLocalPort);
+-	Cancel.addTo(*remoteUrl, remoteTag);
+-	Cancel.addFrom(*MyUrl);
+-	Cancel.addCallId(&CallId);
+-	Cancel.addCSeq(cseq);
+-	Cancel.addUserAgent();
+-
+-	if (authMsg)
+-	{
+-		if (authMsg->getAuthMethod() == "Digest")
+-			Cancel.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
+-		else
+-			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
+-		sentAuthenticated = true;
+-	}
+-	else
+-		sentAuthenticated = false;
+-
+-	Cancel.addNullContent();
+-
+-	// Send new transactions to (a) record route, (b) contact URL or (c) configured URL
+-	if (recRouteUrl)
+-		parent->Transmit(Cancel.string(), retxIp = recRouteUrl->getHostIp(), retxPort = recRouteUrl->getPort());
+-	else if (contactUrl)
+-		parent->Transmit(Cancel.string(), retxIp = contactUrl->getHostIp(), retxPort = contactUrl->getPort());
+-	else
+-		parent->Transmit(Cancel.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
+-	retx = Cancel.string();
+-	t1 = 500;
+-	(parent->Timer())->Start(this, t1, SIP_RETX);
+-}
+-
+-
+-void SipCall::BuildSendBye(SipMsg *authMsg)
+-{
+-	if (remoteUrl == 0)
+-	{
+-		cerr << "URL variables not setup\n";
+-		return;
+-	}
+-
+-	SipMsg Bye("BYE");
+-	Bye.addRequestLine(*remoteUrl);
+-	Bye.addVia(sipLocalIP, sipLocalPort);
+-	if (rxedFrom.length() > 0)
+-	{
+-		Bye.addFromCopy(rxedFrom);
+-		Bye.addToCopy(rxedTo);
+-	}
+-	else
+-	{
+-		Bye.addFrom(*MyUrl);
+-		Bye.addTo(*remoteUrl, remoteTag);
+-	}
+-	Bye.addCallId(&CallId);
+-	Bye.addCSeq(++cseq);
+-	Bye.addUserAgent();
+-
+-	if (authMsg)
+-	{
+-		if (authMsg->getAuthMethod() == "Digest")
+-			Bye.addAuthorization(authMsg->getAuthMethod(), viaRegProxy->registeredAs(), viaRegProxy->registeredPasswd(), authMsg->getAuthRealm(), authMsg->getAuthNonce(), remoteUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
+-		else
+-			cout << "SIP: Unknown Auth Type: " << authMsg->getAuthMethod() << endl;
+-		sentAuthenticated = true;
+-	}
+-	else
+-		sentAuthenticated = false;
+-
+-	Bye.addNullContent();
+-
+-	// Send new transactions to (a) record route, (b) contact URL or (c) configured URL
+-	if (recRouteUrl)
+-		parent->Transmit(Bye.string(), retxIp = recRouteUrl->getHostIp(), retxPort = recRouteUrl->getPort());
+-	else if (contactUrl)
+-		parent->Transmit(Bye.string(), retxIp = contactUrl->getHostIp(), retxPort = contactUrl->getPort());
+-	else
+-		parent->Transmit(Bye.string(), retxIp = remoteUrl->getHostIp(), retxPort = remoteUrl->getPort());
+-	retx = Bye.string();
+-	t1 = 500;
+-	(parent->Timer())->Start(this, t1, SIP_RETX);
+-}
+-
+-void SipCall::AlertUser(SipMsg *rxMsg)
+-{
+-	// A new incoming call has been received, tell someone!
+-	// Actually we just pull out the important bits here & on the
+-	// next call to poll the stack the State will have changed to
+-	// alert the user
+-	if (rxMsg != 0)
+-	{
+-		SipUrl *from = rxMsg->getFromUrl();
+-
+-		if (from)
+-		{
+-			CallersUserid = from->getUser();
+-			if ((viaRegProxy) && (viaRegProxy->registeredTo() == from->getHost()))
+-				CallerUrl = from->getUser();
+-			else
+-			{
+-				CallerUrl = from->getUser() + "@" + from->getHost();
+-				if (from->getPort() != 5060)
+-					CallerUrl += ":" + QString::number(from->getPort());
+-			}
+-			CallersDisplayName = from->getDisplay();
+-		}
+-		else
+-			cerr << "What no from in INVITE?  It is invalid then.\n";
+-	}
+-	else
+-		cerr << "What no INVITE?  How did we get here then?\n";
+-}
+-
+-void SipCall::GetSDPInfo(SipMsg *sipMsg)
+-{
+-	audioPayloadIdx = -1;
+-	videoPayload = -1;
+-	dtmfPayload = -1;
+-	remoteAudioPort = 0;
+-	remoteVideoPort = 0;
+-	rxVideoResolution = "AUDIOONLY";
+-
+-	SipSdp *Sdp = sipMsg->getSdp();
+-	if (Sdp != 0)
+-	{
+-		remoteIp = Sdp->getMediaIP();
+-		remoteAudioPort = Sdp->getAudioPort();
+-		remoteVideoPort = Sdp->getVideoPort();
+-
+-		// See if there is an audio codec we support
+-		QPtrList<sdpCodec> *audioCodecs = Sdp->getAudioCodecList();
+-		sdpCodec *c;
+-		if (audioCodecs)
+-		{
+-			for (int n=0; (n<MAX_AUDIO_CODECS) && (CodecList[n].Payload != -1) &&
+-			        (audioPayloadIdx == -1); n++)
+-			{
+-				for (c=audioCodecs->first(); c; c=audioCodecs->next())
+-				{
+-					if (CodecList[n].Payload == c->intValue())
+-						audioPayloadIdx = n;
+-
+-					// Note - no checking for dynamic payloads implemented yet --- need to match
+-					// by text if .Payload == -1
+-				}
+-			}
+-
+-			// Also check for DTMF
+-			for (c=audioCodecs->first(); c; c=audioCodecs->next())
+-			{
+-				if (c->strValue() == "telephone-event/8000")
+-					dtmfPayload = c->intValue();
+-			}
+-		}
+-
+-		// See if there is a video codec we support
+-		QPtrList<sdpCodec> *videoCodecs = Sdp->getVideoCodecList();
+-		if (videoCodecs)
+-		{
+-			for (c=videoCodecs->first(); c; c=videoCodecs->next())
+-			{
+-				if ((c->intValue() == 34) && (c->strValue() == "H263/90000"))
+-				{
+-					videoPayload = c->intValue();
+-					rxVideoResolution = (c->fmtValue()).section('=', 0, 0);
+-					break;
+-				}
+-			}
+-		}
+-
+-		SipFsm::Debug(SipDebugEvent::SipDebugEv, "SDP contains IP " + remoteIp + " A-Port " + QString::number(remoteAudioPort) + " V-Port " + QString::number(remoteVideoPort) + " Audio Codec:" + QString::number(audioPayloadIdx) + " Video Codec:" + QString::number(videoPayload) + " Format:" + rxVideoResolution + " DTMF: " + QString::number(dtmfPayload) + "\n\n");
+-	}
+-	else
+-		SipFsm::Debug(SipDebugEvent::SipDebugEv, "SIP: No SDP in message\n");
+-}
+-
+-
+-
+-void SipCall::addSdpToInvite(SipMsg& msg, bool advertiseVideo)
+-{
+-	SipSdp sdp(sipLocalIP, sipAudioRtpPort, advertiseVideo ? sipVideoRtpPort : 0);
+-
+-	for (int n=0; (n<MAX_AUDIO_CODECS) && (CodecList[n].Payload != -1); n++)
+-		sdp.addAudioCodec(CodecList[n].Payload, CodecList[n].Encoding + "/8000");
+-
+-	// Signal support for DTMF
+-	sdp.addAudioCodec(101, "telephone-event/8000", "0-11");
+-
+-	if (advertiseVideo)
+-		sdp.addVideoCodec(34, "H263/90000", txVideoResolution +"=2");
+-	sdp.encode();
+-	msg.addContent("application/sdp", sdp.string());
+-}
+-
+-
+-QString SipCall::BuildSdpResponse()
+-{
+-	SipSdp sdp(sipLocalIP, sipAudioRtpPort, (videoPayload != -1) ? sipVideoRtpPort : 0);
+-
+-	sdp.addAudioCodec(CodecList[audioPayloadIdx].Payload, CodecList[audioPayloadIdx].Encoding + "/8000");
+-
+-	// Signal support for DTMF
+-	if (dtmfPayload != -1)
+-		sdp.addAudioCodec(dtmfPayload, "telephone-event/8000", "0-11");
+-
+-	if (videoPayload != -1)
+-		sdp.addVideoCodec(34, "H263/90000", txVideoResolution +"=2");
+-
+-	sdp.encode();
+-	return sdp.string();
+-}
+-
+-
+-
+-
+-/**********************************************************************
+ SipRegistrar
+  
+ A simple registrar class used mainly for testing purposes. Allows
+@@ -2123,155 +760,7 @@
+ 	parent->Transmit(Status.string(), rIp, rPort);
+ }
+ 
+-
+ /**********************************************************************
+-SipRegistration
+- 
+-This class is used to register with a SIP Proxy.
+-**********************************************************************/
+-
+-SipRegistration::SipRegistration(SipFsm *par, QString localIp, int localPort, QString Username, QString Password, QString ProxyName, int ProxyPort) : SipFsmBase(par)
+-{
+-	sipLocalIp = localIp;
+-	sipLocalPort = localPort;
+-	ProxyUrl = new SipUrl("", "", ProxyName, ProxyPort);
+-	MyUrl = new SipUrl("", Username, ProxyName, ProxyPort);
+-	MyContactUrl = new SipUrl("", Username, sipLocalIp, sipLocalPort);
+-	MyPassword = Password;
+-	cseq = 1;
+-	CallId.Generate(sipLocalIp);
+-
+-	SendRegister();
+-	State = SIP_REG_TRYING;
+-	regRetryCount = REG_RETRY_MAXCOUNT;
+-	Expires = 3600;
+-	(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX);
+-}
+-
+-SipRegistration::~SipRegistration()
+-{
+-	if (ProxyUrl)
+-		delete ProxyUrl;
+-	if (MyUrl)
+-		delete MyUrl;
+-	if (MyContactUrl)
+-		delete MyContactUrl;
+-	ProxyUrl = MyUrl = MyContactUrl = 0;
+-	(parent->Timer())->StopAll(this);
+-}
+-
+-int SipRegistration::FSM(int Event, SipMsg *sipMsg, void *Value)
+-{
+-	(void)Value;
+-	switch (Event | State)
+-	{
+-	case SIP_REG_TRYING_STATUS:
+-		(parent->Timer())->Stop(this, SIP_RETX);
+-		switch (sipMsg->getStatusCode())
+-		{
+-		case 200:
+-			if (sipMsg->getExpires() > 0)
+-				Expires = sipMsg->getExpires();
+-			cout << "SIP Registered to " << ProxyUrl->getHost() << " for " << Expires << "s" << endl;
+-			State = SIP_REG_REGISTERED;
+-			(parent->Timer())->Start(this, (Expires-30)*1000, SIP_REG_TREGEXP); // Assume 30secs max to reregister
+-			break;
+-		case 401:
+-		case 407:
+-			SendRegister(sipMsg);
+-			regRetryCount = REG_RETRY_MAXCOUNT;
+-			State = SIP_REG_CHALLENGED;
+-			(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX);
+-			break;
+-		default:
+-			if (sipMsg->getStatusCode() != 100)
+-			{
+-				cout << "SIP Registration failed; Reason " << sipMsg->getStatusCode() << " " << sipMsg->getReasonPhrase() << endl;
+-				State = SIP_REG_FAILED;
+-				(parent->Timer())->Start(this, REG_FAIL_RETRY_TIMER, SIP_RETX); // Try again in 3 minutes
+-			}
+-			break;
+-		}
+-		break;
+-
+-	case SIP_REG_CHALL_STATUS:
+-		(parent->Timer())->Stop(this, SIP_RETX);
+-		switch (sipMsg->getStatusCode())
+-		{
+-		case 200:
+-			if (sipMsg->getExpires() > 0)
+-				Expires = sipMsg->getExpires();
+-			cout << "SIP Registered to " << ProxyUrl->getHost() << " for " << Expires << "s" << endl;
+-			State = SIP_REG_REGISTERED;
+-			(parent->Timer())->Start(this, (Expires-30)*1000, SIP_REG_TREGEXP); // Assume 30secs max to reregister
+-			break;
+-		default:
+-			if (sipMsg->getStatusCode() != 100)
+-			{
+-				cout << "SIP Registration failed; Reason " << sipMsg->getStatusCode() << " " << sipMsg->getReasonPhrase() << endl;
+-				State = SIP_REG_FAILED;
+-				(parent->Timer())->Start(this, REG_FAIL_RETRY_TIMER, SIP_RETX); // Try again in 3 minutes
+-			}
+-			break;
+-		}
+-		break;
+-
+-	case SIP_REG_REGISTERED_TREGEXP:
+-		regRetryCount = REG_RETRY_MAXCOUNT+1;
+-	case SIP_REG_TRYING_RETX:
+-	case SIP_REG_CHALL_RETX:
+-	case SIP_REG_FAILED_RETX:
+-		if (--regRetryCount > 0)
+-		{
+-			State = SIP_REG_TRYING;
+-			SendRegister();
+-			(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX); // Retry every 10 seconds
+-		}
+-		else
+-		{
+-			State = SIP_REG_FAILED;
+-			cout << "SIP Registration failed; no Response from Server. Are you behind a firewall?\n";
+-		}
+-		break;
+-
+-	default:
+-		cerr << "SIP Registration: Unknown Event " << EventtoString(Event) << ", State " << State << endl;
+-		break;
+-	}
+-	return 0;
+-}
+-
+-void SipRegistration::SendRegister(SipMsg *authMsg)
+-{
+-	SipMsg Register("REGISTER");
+-	Register.addRequestLine(*ProxyUrl);
+-	Register.addVia(sipLocalIp, sipLocalPort);
+-	Register.addFrom(*MyUrl);
+-	Register.addTo(*MyUrl);
+-	Register.addCallId(&CallId);
+-	Register.addCSeq(++cseq);
+-
+-	if (authMsg && (authMsg->getAuthMethod() == "Digest"))
+-	{
+-		Register.addAuthorization(authMsg->getAuthMethod(), MyUrl->getUser(), MyPassword,
+-		                          authMsg->getAuthRealm(), authMsg->getAuthNonce(),
+-		                          ProxyUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
+-		sentAuthenticated = true;
+-	}
+-	else
+-		sentAuthenticated = false;
+-
+-	Register.addUserAgent();
+-	Register.addExpires(Expires=3600);
+-	Register.addContact(*MyContactUrl);
+-	Register.addNullContent();
+-
+-	parent->Transmit(Register.string(), ProxyUrl->getHostIp(), ProxyUrl->getPort());
+-}
+-
+-
+-
+-/**********************************************************************
+ SipSubscriber
+  
+ FSM to handle clients subscribed to our presence status.
+@@ -2368,11 +857,11 @@
+ 		break;
+ 
+ 	default:
+-		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP Subscriber FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
++//		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP Subscriber FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
+ 		break;
+ 	}
+ 
+-	DebugFsm(Event, OldState, State);
++//	DebugFsm(Event, OldState, State);
+ 	return State;
+ }
+ 
+@@ -2605,11 +1094,11 @@
+ 		break;
+ 
+ 	default:
+-		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP Watcher FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
++//		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP Watcher FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
+ 		break;
+ 	}
+ 
+-	DebugFsm(Event, OldState, State);
++//	DebugFsm(Event, OldState, State);
+ 	return State;
+ }
+ 
+@@ -2762,11 +1251,11 @@
+ 		break;
+ 
+ 	default:
+-		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP IM FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
++//		SipFsm::Debug(SipDebugEvent::SipErrorEv, "SIP IM FSM Error; received " + EventtoString(Event) + " in state " + StatetoString(State) + "\n\n");
+ 		break;
+ 	}
+ 
+-	DebugFsm(Event, OldState, State);
++//	DebugFsm(Event, OldState, State);
+ 	return State;
+ }
+ 
+
+Modified: konference/src/sip/sipfsm.h
+===================================================================
+--- konference/src/sip/sipfsm.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipfsm.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -38,186 +38,22 @@
+ #include "sipcallid.h"
+ #include "sipmsg.h"
+ #include "sipurl.h"
++#include "sipfsmbase.h"
++#include "sipregistration.h"
+ 
++#include "definitions.h"
++
+ class SipEvent : public QCustomEvent
+ {
+ public:
+ 	enum Type { SipStateChange = (QEvent::User + 400), SipNotification  };
+ 
+ 	SipEvent(Type t) : QCustomEvent(t) {}
+-	~SipEvent() {}
+-}
++	~SipEvent() {}}
+ ;
+ 
+-class SipDebugEvent : public QCustomEvent
+-{
+-public:
+-	enum Type { SipDebugEv = (QEvent::User + 430), SipErrorEv, SipTraceRxEv, SipTraceTxEv  };
+ 
+-	SipDebugEvent(Type t, QString s) : QCustomEvent(t) { text=s;}
+-	~SipDebugEvent() {}
+-	QString msg() { return text;}
+ 
+-private:
+-	QString text;
+-};
+-
+-
+-
+-// Call States
+-#define SIP_IDLE		            0x1
+-#define SIP_OCONNECTING1        0x2    // Invite sent, no response yet
+-#define SIP_OCONNECTING2        0x3    // Invite sent, 1xx response
+-#define SIP_ICONNECTING         0x4
+-#define SIP_CONNECTED           0x5
+-#define SIP_DISCONNECTING       0x6
+-#define SIP_CONNECTED_VXML      0x7    // This is a false state, only used as indication back to the frontend
+-
+-// Registration States
+-#define SIP_REG_DISABLED        0x01   // Proxy registration turned off
+-#define SIP_REG_TRYING          0x02   // Sent a REGISTER, waiting for an answer
+-#define SIP_REG_CHALLENGED      0x03   // Initial REGISTER was met with a challenge, sent an authorized REGISTER
+-#define SIP_REG_FAILED          0x04   // REGISTER failed; will retry after a period of time
+-#define SIP_REG_REGISTERED      0x05   // Registration successful
+-
+-// Presence Subscriber States
+-#define SIP_SUB_IDLE            SIP_IDLE
+-#define SIP_SUB_SUBSCRIBED      0x10
+-
+-// Presence Watcher States
+-#define SIP_WATCH_IDLE          SIP_IDLE
+-#define SIP_WATCH_TRYING        0x20
+-#define SIP_WATCH_ACTIVE        0x21
+-#define SIP_WATCH_STOPPING      0x22
+-#define SIP_WATCH_HOLDOFF       0x23
+-
+-// IM States
+-#define SIP_IM_IDLE             SIP_IDLE
+-#define SIP_IM_ACTIVE           0x30
+-
+-
+-// Events
+-#define SIP_UNKNOWN             0x0
+-#define SIP_OUTCALL             0x100
+-#define SIP_INVITE              0x200
+-#define SIP_INVITESTATUS_2xx    0x300
+-#define SIP_INVITESTATUS_1xx    0x400
+-#define SIP_INVITESTATUS_3456xx 0x500
+-#define SIP_ANSWER              0x600
+-#define SIP_ACK                 0x700
+-#define SIP_BYE                 0x800
+-#define SIP_HANGUP              0x900
+-#define SIP_BYESTATUS           0xA00
+-#define SIP_CANCEL              0xB00
+-#define SIP_CANCELSTATUS        0xC00
+-#define SIP_REGISTER            0xD00
+-#define SIP_RETX                0xE00
+-#define SIP_REGISTRAR_TEXP      0xF00
+-#define SIP_REGSTATUS           0x1000
+-#define SIP_REG_TREGEXP         0x1100
+-#define SIP_SUBSCRIBE           0x1200
+-#define SIP_SUBSTATUS           0x1300
+-#define SIP_NOTIFY              0x1400
+-#define SIP_NOTSTATUS           0x1500
+-#define SIP_PRESENCE_CHANGE     0x1600
+-#define SIP_SUBSCRIBE_EXPIRE    0x1700
+-#define SIP_WATCH               0x1800
+-#define SIP_STOPWATCH           0x1900
+-#define SIP_MESSAGE             0x1A00
+-#define SIP_MESSAGESTATUS       0x1B00
+-#define SIP_INFO                0x1C00
+-#define SIP_INFOSTATUS          0x1D00
+-#define SIP_IM_TIMEOUT          0x1E00
+-#define SIP_USER_MESSAGE        0x1F00
+-#define SIP_KICKWATCH           0x2000
+-
+-#define SIP_CMD(s)              (((s)==SIP_INVITE) || ((s)==SIP_ACK) || ((s)==SIP_BYE) || ((s)==SIP_CANCEL) || ((s)==SIP_REGISTER) || ((s)==SIP_SUBSCRIBE) || ((s)==SIP_NOTIFY) || ((s)==SIP_MESSAGE) || ((s)==SIP_INFO))
+-#define SIP_STATUS(s)           (((s)==SIP_INVITESTATUS_2xx) || ((s)==SIP_INVITESTATUS_1xx) || ((s)==SIP_INVITESTATUS_3456xx) || ((s)==SIP_BYTESTATUS) || ((s)==SIP_CANCELSTATUS) || ((s)==SIP_SUBSTATUS) || ((s)==SIP_NOTSTATUS) || ((s)==SIP_MESSAGESTATUS) || ((s)==SIP_INFOSTATUS) )
+-#define SIP_MSG(s)              (SIP_CMD(s) || SIP_STATUS(s))
+-
+-// Call FSM Actions - combination of event and state to give a "switch"able value
+-#define SIP_IDLE_OUTCALL                  (SIP_IDLE          | SIP_OUTCALL)
+-#define SIP_IDLE_BYE                      (SIP_IDLE          | SIP_BYE)
+-#define SIP_IDLE_INVITE                   (SIP_IDLE          | SIP_INVITE)
+-#define SIP_IDLE_INVITESTATUS_1xx         (SIP_IDLE          | SIP_INVITESTATUS_1xx)
+-#define SIP_IDLE_INVITESTATUS_2xx         (SIP_IDLE          | SIP_INVITESTATUS_2xx)
+-#define SIP_IDLE_INVITESTATUS_3456        (SIP_IDLE          | SIP_INVITESTATUS_3456xx)
+-#define SIP_OCONNECTING1_INVITESTATUS_3456 (SIP_OCONNECTING1  | SIP_INVITESTATUS_3456xx)
+-#define SIP_OCONNECTING1_INVITESTATUS_2xx (SIP_OCONNECTING1  | SIP_INVITESTATUS_2xx)
+-#define SIP_OCONNECTING1_INVITESTATUS_1xx (SIP_OCONNECTING1  | SIP_INVITESTATUS_1xx)
+-#define SIP_OCONNECTING1_RETX             (SIP_OCONNECTING1  | SIP_RETX)
+-#define SIP_OCONNECTING2_INVITESTATUS_3456 (SIP_OCONNECTING2  | SIP_INVITESTATUS_3456xx)
+-#define SIP_OCONNECTING2_INVITESTATUS_2xx (SIP_OCONNECTING2  | SIP_INVITESTATUS_2xx)
+-#define SIP_OCONNECTING2_INVITESTATUS_1xx (SIP_OCONNECTING2  | SIP_INVITESTATUS_1xx)
+-#define SIP_OCONNECTING1_HANGUP           (SIP_OCONNECTING1  | SIP_HANGUP)
+-#define SIP_OCONNECTING2_HANGUP           (SIP_OCONNECTING2  | SIP_HANGUP)
+-#define SIP_OCONNECTING1_INVITE           (SIP_OCONNECTING1  | SIP_INVITE)
+-#define SIP_ICONNECTING_INVITE            (SIP_ICONNECTING   | SIP_INVITE)
+-#define SIP_ICONNECTING_ANSWER            (SIP_ICONNECTING   | SIP_ANSWER)
+-#define SIP_ICONNECTING_CANCEL            (SIP_ICONNECTING   | SIP_CANCEL)
+-#define SIP_CONNECTED_ACK                 (SIP_CONNECTED     | SIP_ACK)
+-#define SIP_CONNECTED_INVITESTATUS_2xx    (SIP_CONNECTED     | SIP_INVITESTATUS_2xx)
+-#define SIP_CONNECTED_RETX                (SIP_CONNECTED     | SIP_RETX)
+-#define SIP_CONNECTED_BYE                 (SIP_CONNECTED     | SIP_BYE)
+-#define SIP_CONNECTED_HANGUP              (SIP_CONNECTED     | SIP_HANGUP)
+-#define SIP_DISCONNECTING_BYESTATUS       (SIP_DISCONNECTING | SIP_BYESTATUS)
+-#define SIP_DISCONNECTING_ACK             (SIP_DISCONNECTING | SIP_ACK)
+-#define SIP_DISCONNECTING_RETX            (SIP_DISCONNECTING | SIP_RETX)
+-#define SIP_DISCONNECTING_CANCEL          (SIP_DISCONNECTING | SIP_CANCEL)
+-#define SIP_DISCONNECTING_CANCELSTATUS    (SIP_DISCONNECTING | SIP_CANCELSTATUS)
+-#define SIP_DISCONNECTING_BYE             (SIP_DISCONNECTING | SIP_BYE)
+-
+-// Registration FSM Actions - combination of event and state to give a "switch"able value
+-#define SIP_REG_TRYING_STATUS             (SIP_REG_TRYING    | SIP_REGSTATUS)
+-#define SIP_REG_CHALL_STATUS              (SIP_REG_CHALLENGED| SIP_REGSTATUS)
+-#define SIP_REG_REGISTERED_TREGEXP        (SIP_REG_REGISTERED| SIP_REG_TREGEXP)
+-#define SIP_REG_TRYING_RETX               (SIP_REG_TRYING    | SIP_RETX)
+-#define SIP_REG_CHALL_RETX                (SIP_REG_CHALLENGED| SIP_RETX)
+-#define SIP_REG_FAILED_RETX               (SIP_REG_FAILED    | SIP_RETX)
+-
+-// Presence Subscriber FSM Actions - combination of event and state to give a "switch"able value
+-#define SIP_SUB_IDLE_SUBSCRIBE            (SIP_SUB_IDLE       | SIP_SUBSCRIBE)
+-#define SIP_SUB_SUBS_SUBSCRIBE            (SIP_SUB_SUBSCRIBED | SIP_SUBSCRIBE)
+-#define SIP_SUB_SUBS_SUBSCRIBE_EXPIRE     (SIP_SUB_SUBSCRIBED | SIP_SUBSCRIBE_EXPIRE)
+-#define SIP_SUB_SUBS_RETX                 (SIP_SUB_SUBSCRIBED | SIP_RETX)
+-#define SIP_SUB_SUBS_NOTSTATUS            (SIP_SUB_SUBSCRIBED | SIP_NOTSTATUS)
+-#define SIP_SUB_SUBS_PRESENCE_CHANGE      (SIP_SUB_SUBSCRIBED | SIP_PRESENCE_CHANGE)
+-
+-// Presence Watcher FSM Actions - combination of event and state to give a "switch"able value
+-#define SIP_WATCH_IDLE_WATCH              (SIP_WATCH_IDLE     | SIP_WATCH)
+-#define SIP_WATCH_TRYING_WATCH            (SIP_WATCH_TRYING   | SIP_WATCH)
+-#define SIP_WATCH_ACTIVE_SUBSCRIBE_EXPIRE (SIP_WATCH_ACTIVE   | SIP_SUBSCRIBE_EXPIRE)
+-#define SIP_WATCH_TRYING_RETX             (SIP_WATCH_TRYING   | SIP_RETX)
+-#define SIP_WATCH_ACTIVE_RETX             (SIP_WATCH_ACTIVE   | SIP_RETX)
+-#define SIP_WATCH_TRYING_SUBSTATUS        (SIP_WATCH_TRYING   | SIP_SUBSTATUS)
+-#define SIP_WATCH_ACTIVE_SUBSTATUS        (SIP_WATCH_ACTIVE   | SIP_SUBSTATUS)
+-#define SIP_WATCH_ACTIVE_NOTIFY           (SIP_WATCH_ACTIVE   | SIP_NOTIFY)
+-#define SIP_WATCH_TRYING_STOPWATCH        (SIP_WATCH_TRYING   | SIP_STOPWATCH)
+-#define SIP_WATCH_ACTIVE_STOPWATCH        (SIP_WATCH_ACTIVE   | SIP_STOPWATCH)
+-#define SIP_WATCH_STOPPING_RETX           (SIP_WATCH_STOPPING | SIP_RETX)
+-#define SIP_WATCH_STOPPING_SUBSTATUS      (SIP_WATCH_STOPPING | SIP_SUBSTATUS)
+-#define SIP_WATCH_TRYING_SUBSCRIBE        (SIP_WATCH_TRYING   | SIP_SUBSCRIBE)
+-#define SIP_WATCH_HOLDOFF_WATCH           (SIP_WATCH_HOLDOFF  | SIP_WATCH)
+-#define SIP_WATCH_HOLDOFF_STOPWATCH       (SIP_WATCH_HOLDOFF  | SIP_STOPWATCH)
+-#define SIP_WATCH_HOLDOFF_SUBSCRIBE       (SIP_WATCH_HOLDOFF  | SIP_SUBSCRIBE)
+-#define SIP_WATCH_HOLDOFF_KICK            (SIP_WATCH_HOLDOFF  | SIP_KICKWATCH)
+-
+-
+-// Build Options logically OR'ed and sent to build procs
+-#define SIP_OPT_SDP		1
+-#define SIP_OPT_CONTACT	2
+-#define SIP_OPT_VIA		4
+-#define SIP_OPT_ALLOW	8
+-#define SIP_OPT_EXPIRES	16
+-
+-// Timers
+-#define REG_RETRY_TIMER			3000 // seconds
+-#define REG_FAIL_RETRY_TIMER	180000 // 3 minutes
+-#define REG_RETRY_MAXCOUNT		5
+-
+-#define SIP_POLL_PERIOD			2   // Twice per second
+-
+-
+ // Forward reference.
+ class SipFsm;
+ class SipTimer;
+@@ -226,256 +62,8 @@
+ class SipRegistrar;
+ class SipRegistration;
+ class SipContainer;
++class SipCall;
+ 
+-// Global variable ref
+-extern SipContainer  *sipContainer;
+-
+-
+-struct CodecNeg
+-{
+-	int Payload;
+-	QString Encoding;
+-};
+-
+-#define MAX_AUDIO_CODECS   5        // Make 1 more than max so we can use last place in array as a terminator
+-
+-class SipContainer
+-{
+-public:
+-	SipContainer(int listenPort=5060);
+-	~SipContainer();
+-	void PlaceNewCall(QString Mode, QString uri, QString name, bool disableNat);
+-	void AnswerRingingCall(QString Mode, bool disableNat);
+-	void HangupCall();
+-	void UiOpened(QObject *);
+-	void UiClosed();
+-	void UiWatch(QStrList uriList);
+-	void UiWatch(QString uri);
+-	void UiStopWatchAll();
+-	QString UiSendIMMessage(QString DestUrl, QString CallId, QString Msg);
+-	bool GetNotification(QString &type, QString &url, QString &param1, QString &param2);
+-	void GetRegistrationStatus(bool &Registered, QString &RegisteredTo, QString &RegisteredAs);
+-	int  GetSipState();
+-	void GetIncomingCaller(QString &u, QString &d, QString &l, bool &audOnly);
+-	void GetSipSDPDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes);
+-	void notifyRegistrationStatus(bool reg, QString To, QString As) { regStatus=reg; regTo=To; regAs=As;}
+-	void notifyCallState(int s) { CallState=s;}
+-	void notifySDPDetails(QString ip, int aport, int audPay, QString audCodec, int dtmfPay, int vport, int vidPay, QString vidCodec, QString vidRes)
+-	{
+-		remoteIp=ip; remoteAudioPort=aport; audioPayload=audPay; audioCodec=audCodec;
+-		dtmfPayload=dtmfPay; remoteVideoPort=vport; videoPayload=vidPay; videoCodec=vidCodec; videoRes=vidRes;
+-	}
+-	void notifyCallerDetails(QString cU, QString cN, QString cUrl, bool inAudOnly)
+-	{ callerUser=cU; callerName=cN; callerUrl=cUrl; inAudioOnly=inAudOnly; }
+-	bool killThread() { return killSipThread; }
+-	QString getLocalIpAddress();
+-	QString getNatIpAddress();
+-
+-
+-private:
+-	SipThread *sipThread;
+-	bool killSipThread;
+-	int CallState;
+-	bool regStatus;
+-	QString regTo;
+-	QString regAs;
+-	QString callerUser, callerName, callerUrl;
+-	bool inAudioOnly;
+-	QString remoteIp;
+-	int remoteAudioPort;
+-	int remoteVideoPort;
+-	int audioPayload;
+-	int dtmfPayload;
+-	int videoPayload;
+-	QString audioCodec;
+-	QString videoCodec;
+-	QString videoRes;
+-};
+-
+-
+-
+-class SipThread : public QThread
+-{
+-public:
+-	SipThread(SipContainer *c) { sipContainer = c;};
+-	~SipThread() {};
+-	virtual void run();
+-
+-private:
+-	void SipThreadWorker();
+-	void CheckUIEvents(SipFsm *sipFsm);
+-	void CheckNetworkEvents(SipFsm *sipFsm);
+-	void CheckRegistrationStatus(SipFsm *sipFsm);
+-	void ChangePrimaryCallState(SipFsm *sipFsm, int NewState);
+-
+-	SipContainer *sipContainer;
+-	bool FrontEndActive;
+-
+-	int CallState;
+-	QString callerUser, callerName, callerUrl;
+-	bool inAudioOnly;
+-	QString remoteIp;
+-	int remoteAudioPort;
+-	int remoteVideoPort;
+-	int audioPayload;
+-	int dtmfPayload;
+-	int videoPayload;
+-	QString audioCodec;
+-	QString videoCodec;
+-	QString videoRes;
+-	int rnaTimer;                         // Ring No Answer Timer
+-};
+-
+-
+-
+-// This is a base class to allow the SipFsm class to pass events to multiple FSMs
+-class SipFsmBase
+-{
+-public:
+-	SipFsmBase(SipFsm *p);
+-	virtual ~SipFsmBase();
+-	virtual int     FSM(int Event, SipMsg *sipMsg=0, void *Value=0) { (void)Event; (void)sipMsg; (void)Value; return 0; }
+-	virtual QString type()       { return "BASE"; }
+-	virtual SipUrl *getUrl()     { return remoteUrl; }
+-	virtual int     getCallRef() { return -1; }
+-	QString callId()   { return CallId.string(); }
+-
+-protected:
+-	void BuildSendStatus(int Code, QString Method, int statusCseq, int Option=0, int statusExpires=-1, QString sdp="");
+-	void ParseSipMsg(int Event, SipMsg *sipMsg);
+-	bool Retransmit(bool force);
+-	void DebugFsm(int event, int old_state, int new_state);
+-	QString EventtoString(int Event);
+-	QString StatetoString(int S);
+-
+-	QString retx;
+-	QString retxIp;
+-	int retxPort;
+-	int t1;
+-	bool sentAuthenticated;
+-	SipFsm   *parent;
+-
+-	SipCallId CallId;
+-	QString viaIp;
+-	int viaPort;
+-	QString remoteTag;
+-	QString remoteEpid;
+-	QString rxedTo;
+-	QString rxedFrom;
+-	QString RecRoute;
+-	QString Via;
+-	SipUrl *remoteUrl;
+-	SipUrl *toUrl;
+-	SipUrl *contactUrl;
+-	SipUrl *recRouteUrl;
+-	SipUrl *MyUrl;
+-	SipUrl *MyContactUrl;
+-
+-};
+-
+-
+-class SipRegistration : public SipFsmBase
+-{
+-public:
+-	SipRegistration(SipFsm *par, QString localIp, int localPort, QString Username, QString Password, QString ProxyName, int ProxyPort);
+-	~SipRegistration();
+-	virtual int  FSM(int Event, SipMsg *sipMsg=0, void *Value=0);
+-	virtual QString type()     { return "REGISTRATION"; };
+-	bool isRegistered()        { return (State == SIP_REG_REGISTERED); }
+-	QString registeredTo()     { return ProxyUrl->getHost(); }
+-	QString registeredAs()     { return MyContactUrl->getUser(); }
+-	int     registeredPort()   { return ProxyUrl->getPort(); }
+-	QString registeredPasswd() { return MyPassword; }
+-
+-private:
+-	void SendRegister(SipMsg *authMsg=0);
+-
+-	int State;
+-	int Expires;
+-	QString sipLocalIp;
+-	int sipLocalPort;
+-	int regRetryCount;
+-
+-	SipUrl *ProxyUrl;
+-	QString MyPassword;
+-	int cseq;
+-};
+-
+-
+-class SipCall : public SipFsmBase
+-{
+-public:
+-	SipCall(QString localIp, QString natIp, int localPort, int n, SipFsm *par);
+-	~SipCall();
+-	int  getState() { return State; };
+-	void setVideoPayload(int p) { videoPayload = p; };
+-	void setVideoResolution(QString v) { txVideoResolution = v; };
+-	void setAllowVideo(bool a)  { allowVideo = a; };
+-	void setDisableNat(bool n)  { disableNat = n; };
+-	void to(QString uri, QString DispName) { DestinationUri = uri; DisplayName = DispName; };
+-	void dialViaProxy(SipRegistration *s) { viaRegProxy = s; };
+-	virtual int  FSM(int Event, SipMsg *sipMsg=0, void *Value=0);
+-	virtual QString type() { return "CALL"; };
+-	virtual int     getCallRef() { return callRef; };
+-	void GetIncomingCaller(QString &u, QString &d, QString &l, bool &aud)
+-	{ u = CallersUserid; d = CallersDisplayName; l = CallerUrl; aud = (videoPayload == -1); }
+-	void GetSdpDetails(QString &ip, int &aport, int &audPay, QString &audCodec, int &dtmfPay, int &vport, int &vidPay, QString &vidCodec, QString &vidRes)
+-	{
+-		ip=remoteIp; aport=remoteAudioPort; vport=remoteVideoPort; audPay = CodecList[audioPayloadIdx].Payload;
+-		audCodec = CodecList[audioPayloadIdx].Encoding; dtmfPay = dtmfPayload; vidPay = videoPayload;
+-		vidCodec = (vidPay == 34 ? "H263" : ""); vidRes = rxVideoResolution;
+-	}
+-
+-private:
+-	int       State;
+-	int       callRef;
+-
+-	void initialise();
+-	bool UseNat(QString destIPAddress);
+-	void ForwardMessage(SipMsg *msg);
+-	void BuildSendInvite(SipMsg *authMsg);
+-	void BuildSendAck();
+-	void BuildSendBye(SipMsg *authMsg);
+-	void BuildSendCancel(SipMsg *authMsg);
+-	void AlertUser(SipMsg *rxMsg);
+-	void GetSDPInfo(SipMsg *sipMsg);
+-	void addSdpToInvite(SipMsg& msg, bool advertiseVideo);
+-	QString BuildSdpResponse();
+-
+-	QString DestinationUri;
+-	QString DisplayName;
+-	CodecNeg CodecList[MAX_AUDIO_CODECS];
+-	QString txVideoResolution;
+-	QString rxVideoResolution;
+-
+-	int cseq;
+-	SipRegistration *viaRegProxy;
+-
+-	// Incoming call information
+-	QString CallersUserid;
+-	QString CallersDisplayName;
+-	QString CallerUrl;
+-	QString remoteIp;
+-	int     remoteAudioPort;
+-	int     remoteVideoPort;
+-	int     audioPayloadIdx;
+-	int     videoPayload;
+-	int     dtmfPayload;
+-	bool    allowVideo;
+-	bool    disableNat;
+-
+-	QString myDisplayName;	// The name to display when I call others
+-	QString sipLocalIP;
+-	QString sipNatIP;
+-	int     sipLocalPort;
+-	QString sipUsername;
+-
+-	int sipRtpPacketisation;	// RTP Packetisation period in ms
+-	int sipAudioRtpPort;
+-	int sipVideoRtpPort;
+-};
+-
+-
+ class SipSubscriber : public SipFsmBase
+ {
+ public:
+@@ -552,10 +140,9 @@
+ 
+ public:
+ 
+-	SipFsm(QWidget *parent = 0, const char * = 0);
++	SipFsm(SipContainer *container, QWidget *parent = 0, const char * = 0);
+ 	~SipFsm(void);
+ bool SocketOpenedOk() { return sipSocket != 0 ? true : false; }
+-	static void Debug(SipDebugEvent::Type t, QString dbg);
+ 	void NewCall(bool audioOnly, QString uri, QString DispName, QString videoMode, bool DisableNat);
+ 	void HangUp(void);
+ 	void Answer(bool audioOnly, QString videoMode, bool DisableNat);
+@@ -584,8 +171,9 @@
+ 	SipRegistrar *getRegistrar() { return sipRegistrar; }
+ 	bool isRegistered() { return (sipRegistration != 0 && sipRegistration->isRegistered()); }
+ 	QString registeredTo() { if (sipRegistration) return sipRegistration->registeredTo(); else return ""; }
+-QString registeredAs() { if (sipRegistration) return sipRegistration->registeredAs(); else return ""; }
+-
++	QString registeredAs() { if (sipRegistration) return sipRegistration->registeredAs(); else return ""; }
++	QString getLocalIpAddress(){return localIp;};
++	QString getNatIpAddress(){return natIp;};
+ 	//  public slots:
+ 
+ 
+@@ -593,7 +181,12 @@
+ 	int MsgToEvent(SipMsg *sipMsg);
+ 	QString DetermineNatAddress();
+ 
++	SipContainer *m_sipContainer;
++	
++	QString localIp;
++	QString natIp;
+ 	int localPort;
++	
+ 	QPtrList<SipFsmBase> FsmList;
+ 	QSocketDevice *sipSocket;
+ 	int callCount;
+@@ -642,20 +235,6 @@
+ 
+ };
+ 
+-/*
+-class SipNotify
+-{
+-public:
+-	SipNotify();
+-	~SipNotify();
+-	void Display(QString name, QString number);
+-
+-private:
+-	QSocketDevice *notifySocket;
+-};
+-*/
+-
+-
+ class aSipTimer
+ {
+ public:
+@@ -690,6 +269,4 @@
+ };
+ 
+ 
+-
+-
+ #endif
+
+Added: konference/src/sip/sipfsmbase.cpp
+===================================================================
+--- konference/src/sip/sipfsmbase.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipfsmbase.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,246 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include "sipmsg.h"
++#include "sipurl.h"
++#include "sipcallid.h"
++#include "sipfsm.h"
++
++#include <iostream>
++using namespace std;
++
++#include "sipfsmbase.h"
++
++/**********************************************************************
++SipFsmBase
++ 
++A base class for FSM which defines a set of default procedures that are
++used by the derived classes.
++**********************************************************************/
++
++SipFsmBase::SipFsmBase(SipFsm *p)
++{
++	parent = p;
++	remoteUrl = 0;
++	toUrl = 0;
++	contactUrl = 0;
++	recRouteUrl = 0;
++	remoteTag = "";
++	remoteEpid = "";
++	rxedTo = "";
++	rxedFrom = "";
++	MyUrl = 0;
++	MyContactUrl = 0;
++	sentAuthenticated = false;
++}
++
++SipFsmBase::~SipFsmBase()
++{
++	if (remoteUrl != 0)
++		delete remoteUrl;
++	if (toUrl != 0)
++		delete toUrl;
++	if (contactUrl != 0)
++		delete contactUrl;
++	if (recRouteUrl != 0)
++		delete recRouteUrl;
++	if (MyUrl != 0)
++		delete MyUrl;
++	if (MyContactUrl != 0)
++		delete MyContactUrl;
++
++	remoteUrl = 0;
++	toUrl = 0;
++	contactUrl = 0;
++	recRouteUrl = 0;
++	MyUrl = 0;
++	MyContactUrl = 0;
++}
++
++bool SipFsmBase::Retransmit(bool force)
++{
++	if (force || (t1 < 8000))
++	{
++		t1 *= 2;
++		if ((retx.length() > 0) && (retxIp.length() > 0))
++		{
++			parent->Transmit(retx, retxIp, retxPort);
++			return true;
++		}
++	}
++	return false;
++}
++
++void SipFsmBase::ParseSipMsg(int Event, SipMsg *sipMsg)
++{
++	// Pull out Remote TAG
++	remoteTag = (SIP_CMD(Event)) ? sipMsg->getFromTag() : sipMsg->getToTag();
++	remoteEpid = (SIP_CMD(Event)) ? sipMsg->getFromEpid() : QString("");
++
++	// Pull out VIA, To and From information from CMDs to send back in Status
++	if (SIP_CMD(Event))
++	{
++		rxedTo   = sipMsg->getCompleteTo();
++		rxedFrom = sipMsg->getCompleteFrom();
++		RecRoute = sipMsg->getCompleteRR();
++		Via      = sipMsg->getCompleteVia();
++		CallId   = *(sipMsg->getCallId());
++		viaIp    = sipMsg->getViaIp();
++		viaPort  = sipMsg->getViaPort();
++		if (remoteUrl == 0)
++			remoteUrl = new SipUrl(sipMsg->getFromUrl());
++		if (toUrl == 0)
++			toUrl = new SipUrl(sipMsg->getToUrl());
++	}
++
++	// Pull out Contact info
++	SipUrl *s;
++	if ((s = sipMsg->getContactUrl()) != 0)
++	{
++		if (contactUrl)
++			delete contactUrl;
++		contactUrl = new SipUrl(s);
++	}
++
++	// Pull out Record Route info
++	if ((s = sipMsg->getRecRouteUrl()) != 0)
++	{
++		if (recRouteUrl)
++			delete recRouteUrl;
++		recRouteUrl = new SipUrl(s);
++	}
++}
++
++void SipFsmBase::BuildSendStatus(int Code, QString Method, int statusCseq, int Option, int statusExpires, QString sdp)
++{
++	if (remoteUrl == 0)
++	{
++		cerr << "URL variables not setup\n";
++		return;
++	}
++
++	SipMsg Status(Method);
++	Status.addStatusLine(Code);
++	if (RecRoute.length() > 0)
++		Status.addRRCopy(RecRoute);
++	if (Via.length() > 0)
++		Status.addViaCopy(Via);
++	Status.addFromCopy(rxedFrom);
++	Status.addToCopy(rxedTo);
++	Status.addCallId(&CallId);
++	Status.addCSeq(statusCseq);
++	if ((Option & SIP_OPT_EXPIRES) && (statusExpires >= 0))
++		Status.addExpires(statusExpires);
++
++	if (Option & SIP_OPT_ALLOW) // Add my Contact URL to the message
++		Status.addAllow();
++	if (Option & SIP_OPT_CONTACT) // Add my Contact URL to the message
++		Status.addContact(*MyContactUrl);
++	if (Option & SIP_OPT_SDP) // Add an SDP to the message
++		Status.addContent("application/sdp", sdp);
++	else
++		Status.addNullContent();
++
++	// Send STATUS messages to the VIA address
++	parent->Transmit(Status.string(), retxIp = viaIp, retxPort = viaPort);
++
++	if (((Code >= 200) && (Code <= 299)) && (Method == "INVITE"))
++	{
++		retx = Status.string();
++		t1 = 500;
++		(parent->Timer())->Start(this, t1, SIP_RETX);
++	}
++}
++
++
++void SipFsmBase::DebugFsm(int event, int old_state, int new_state)
++{
++//	SipFsm::Debug(SipDebugEvent::SipDebugEv, "SIP FSM: Event " + EventtoString(event) + " : "
++//	              + StatetoString(old_state) + " -> " + StatetoString(new_state) + "\n");
++}
++
++
++QString SipFsmBase::EventtoString(int Event)
++{
++	switch (Event)
++	{
++	case SIP_OUTCALL:             return "OUTCALL";
++	case SIP_REGISTER:            return "REGISTER";
++	case SIP_INVITE:              return "INVITE";
++	case SIP_INVITESTATUS_3456xx: return "INVST-3456xx";
++	case SIP_INVITESTATUS_2xx:    return "INVSTAT-2xx";
++	case SIP_INVITESTATUS_1xx:    return "INVSTAT-1xx";
++	case SIP_ANSWER:              return "ANSWER";
++	case SIP_ACK:                 return "ACK";
++	case SIP_BYE:                 return "BYE";
++	case SIP_CANCEL:              return "CANCEL";
++	case SIP_HANGUP:              return "HANGUP";
++	case SIP_BYESTATUS:           return "BYESTATUS";
++	case SIP_CANCELSTATUS:        return "CANCSTATUS";
++	case SIP_RETX:                return "RETX";
++	case SIP_REGISTRAR_TEXP:      return "REGITRAR_T";
++	case SIP_REGSTATUS:           return "REG_STATUS";
++	case SIP_REG_TREGEXP:         return "REG_TEXP";
++	case SIP_SUBSCRIBE:           return "SUBSCRIBE";
++	case SIP_SUBSTATUS:           return "SUB_STATUS";
++	case SIP_NOTIFY:              return "NOTIFY";
++	case SIP_NOTSTATUS:           return "NOT_STATUS";
++	case SIP_PRESENCE_CHANGE:     return "PRESENCE_CHNG";
++	case SIP_SUBSCRIBE_EXPIRE:    return "SUB_EXPIRE";
++	case SIP_WATCH:               return "WATCH";
++	case SIP_STOPWATCH:           return "STOPWATCH";
++	case SIP_MESSAGE:             return "MESSAGE";
++	case SIP_MESSAGESTATUS:       return "MESSAGESTATUS";
++	case SIP_INFO:                return "INFO";
++	case SIP_INFOSTATUS:          return "INFOSTATUS";
++	case SIP_IM_TIMEOUT:          return "IM_TIMEOUT";
++	case SIP_USER_MESSAGE:        return "USER_IM";
++	case SIP_KICKWATCH:           return "KICKWATCH";
++	default:
++		break;
++	}
++	return "Unknown-Event";
++}
++
++
++QString SipFsmBase::StatetoString(int S)
++{
++	switch (S)
++	{
++	case SIP_IDLE:              return "IDLE";
++	case SIP_OCONNECTING1:      return "OCONNECT1";
++	case SIP_OCONNECTING2:      return "OCONNECT2";
++	case SIP_ICONNECTING:       return "ICONNECT";
++	case SIP_CONNECTED:         return "CONNECTED";
++	case SIP_DISCONNECTING:     return "DISCONNECT ";
++	case SIP_CONNECTED_VXML:    return "CONNECT-VXML";  // A false state! Only used to indicate to frontend
++	case SIP_SUB_SUBSCRIBED:    return "SUB_SUBSCRIBED";
++	case SIP_WATCH_TRYING:      return "WTCH_TRYING";
++	case SIP_WATCH_ACTIVE:      return "WTCH_ACTIVE";
++	case SIP_WATCH_STOPPING:    return "WTCH_STOPPING";
++	case SIP_WATCH_HOLDOFF:     return "WTCH_HOLDDOFF";
++	case SIP_IM_ACTIVE:         return "IM_ACTIVE";
++
++	default:
++		break;
++	}
++	return "Unknown-State";
++}
++
+
+Added: konference/src/sip/sipfsmbase.h
+===================================================================
+--- konference/src/sip/sipfsmbase.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipfsmbase.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,77 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPFSMBASE_H
++#define SIPFSMBASE_H
++
++class SipFsm;
++class SipMsg;
++class SipUrl;
++
++#include "sipcallid.h"
++
++// This is a base class to allow the SipFsm class to pass events to multiple FSMs
++class SipFsmBase
++{
++public:
++	SipFsmBase(SipFsm *p);
++	virtual ~SipFsmBase();
++	virtual int     FSM(int Event, SipMsg *sipMsg=0, void *Value=0) { (void)Event; (void)sipMsg; (void)Value; return 0; }
++	virtual QString type()       { return "BASE"; }
++	virtual SipUrl *getUrl()     { return remoteUrl; }
++	virtual int     getCallRef() { return -1; }
++	QString callId()   { return CallId.string(); }
++
++
++protected:
++	void BuildSendStatus(int Code, QString Method, int statusCseq, int Option=0, int statusExpires=-1, QString sdp="");
++	void ParseSipMsg(int Event, SipMsg *sipMsg);
++	bool Retransmit(bool force);
++	void DebugFsm(int event, int old_state, int new_state);
++	QString EventtoString(int Event);
++	QString StatetoString(int S);
++
++
++
++	QString retx;
++	QString retxIp;
++	int retxPort;
++	int t1;
++	bool sentAuthenticated;
++	SipFsm   *parent;
++
++	SipCallId CallId;
++	QString viaIp;
++	int viaPort;
++	QString remoteTag;
++	QString remoteEpid;
++	QString rxedTo;
++	QString rxedFrom;
++	QString RecRoute;
++	QString Via;
++	SipUrl *remoteUrl;
++	SipUrl *toUrl;
++	SipUrl *contactUrl;
++	SipUrl *recRouteUrl;
++	SipUrl *MyUrl;
++	SipUrl *MyContactUrl;
++
++};
++
++#endif
+
+Added: konference/src/sip/sipregistration.cpp
+===================================================================
+--- konference/src/sip/sipregistration.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipregistration.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,173 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include "sipurl.h"
++#include "sipfsm.h"
++
++#include <iostream>
++using namespace std;
++
++#include "sipregistration.h"
++
++/**********************************************************************
++SipRegistration
++ 
++This class is used to register with a SIP Proxy.
++**********************************************************************/
++
++SipRegistration::SipRegistration(SipFsm *par, QString localIp, int localPort, QString Username, QString Password, QString ProxyName, int ProxyPort) : SipFsmBase(par)
++{
++	sipLocalIp = localIp;
++	sipLocalPort = localPort;
++	ProxyUrl = new SipUrl("", "", ProxyName, ProxyPort);
++	MyUrl = new SipUrl("", Username, ProxyName, ProxyPort);
++	MyContactUrl = new SipUrl("", Username, sipLocalIp, sipLocalPort);
++	MyPassword = Password;
++	cseq = 1;
++	CallId.Generate(sipLocalIp);
++
++	SendRegister();
++	State = SIP_REG_TRYING;
++	regRetryCount = REG_RETRY_MAXCOUNT;
++	Expires = 3600;
++	(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX);
++}
++
++SipRegistration::~SipRegistration()
++{
++	if (ProxyUrl)
++		delete ProxyUrl;
++	if (MyUrl)
++		delete MyUrl;
++	if (MyContactUrl)
++		delete MyContactUrl;
++	ProxyUrl = MyUrl = MyContactUrl = 0;
++	(parent->Timer())->StopAll(this);
++}
++
++int SipRegistration::FSM(int Event, SipMsg *sipMsg, void *Value)
++{
++	(void)Value;
++	switch (Event | State)
++	{
++	case SIP_REG_TRYING_STATUS:
++		(parent->Timer())->Stop(this, SIP_RETX);
++		switch (sipMsg->getStatusCode())
++		{
++		case 200:
++			if (sipMsg->getExpires() > 0)
++				Expires = sipMsg->getExpires();
++			cout << "SIP Registered to " << ProxyUrl->getHost() << " for " << Expires << "s" << endl;
++			State = SIP_REG_REGISTERED;
++			(parent->Timer())->Start(this, (Expires-30)*1000, SIP_REG_TREGEXP); // Assume 30secs max to reregister
++			break;
++		case 401:
++		case 407:
++			SendRegister(sipMsg);
++			regRetryCount = REG_RETRY_MAXCOUNT;
++			State = SIP_REG_CHALLENGED;
++			(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX);
++			break;
++		default:
++			if (sipMsg->getStatusCode() != 100)
++			{
++				cout << "SIP Registration failed; Reason " << sipMsg->getStatusCode() << " " << sipMsg->getReasonPhrase() << endl;
++				State = SIP_REG_FAILED;
++				(parent->Timer())->Start(this, REG_FAIL_RETRY_TIMER, SIP_RETX); // Try again in 3 minutes
++			}
++			break;
++		}
++		break;
++
++	case SIP_REG_CHALL_STATUS:
++		(parent->Timer())->Stop(this, SIP_RETX);
++		switch (sipMsg->getStatusCode())
++		{
++		case 200:
++			if (sipMsg->getExpires() > 0)
++				Expires = sipMsg->getExpires();
++			cout << "SIP Registered to " << ProxyUrl->getHost() << " for " << Expires << "s" << endl;
++			State = SIP_REG_REGISTERED;
++			(parent->Timer())->Start(this, (Expires-30)*1000, SIP_REG_TREGEXP); // Assume 30secs max to reregister
++			break;
++		default:
++			if (sipMsg->getStatusCode() != 100)
++			{
++				cout << "SIP Registration failed; Reason " << sipMsg->getStatusCode() << " " << sipMsg->getReasonPhrase() << endl;
++				State = SIP_REG_FAILED;
++				(parent->Timer())->Start(this, REG_FAIL_RETRY_TIMER, SIP_RETX); // Try again in 3 minutes
++			}
++			break;
++		}
++		break;
++
++	case SIP_REG_REGISTERED_TREGEXP:
++		regRetryCount = REG_RETRY_MAXCOUNT+1;
++	case SIP_REG_TRYING_RETX:
++	case SIP_REG_CHALL_RETX:
++	case SIP_REG_FAILED_RETX:
++		if (--regRetryCount > 0)
++		{
++			State = SIP_REG_TRYING;
++			SendRegister();
++			(parent->Timer())->Start(this, REG_RETRY_TIMER, SIP_RETX); // Retry every 10 seconds
++		}
++		else
++		{
++			State = SIP_REG_FAILED;
++			cout << "SIP Registration failed; no Response from Server. Are you behind a firewall?\n";
++		}
++		break;
++
++	default:
++		cerr << "SIP Registration: Unknown Event " << EventtoString(Event) << ", State " << State << endl;
++		break;
++	}
++	return 0;
++}
++
++void SipRegistration::SendRegister(SipMsg *authMsg)
++{
++	SipMsg Register("REGISTER");
++	Register.addRequestLine(*ProxyUrl);
++	Register.addVia(sipLocalIp, sipLocalPort);
++	Register.addFrom(*MyUrl);
++	Register.addTo(*MyUrl);
++	Register.addCallId(&CallId);
++	Register.addCSeq(++cseq);
++
++	if (authMsg && (authMsg->getAuthMethod() == "Digest"))
++	{
++		Register.addAuthorization(authMsg->getAuthMethod(), MyUrl->getUser(), MyPassword,
++		                          authMsg->getAuthRealm(), authMsg->getAuthNonce(),
++		                          ProxyUrl->formatReqLineUrl(), authMsg->getStatusCode() == 407);
++		sentAuthenticated = true;
++	}
++	else
++		sentAuthenticated = false;
++
++	Register.addUserAgent();
++	Register.addExpires(Expires=3600);
++	Register.addContact(*MyContactUrl);
++	Register.addNullContent();
++
++	parent->Transmit(Register.string(), ProxyUrl->getHostIp(), ProxyUrl->getPort());
++}
++
+
+Added: konference/src/sip/sipregistration.h
+===================================================================
+--- konference/src/sip/sipregistration.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipregistration.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,54 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPREGISTRATION_H
++#define SIPREGISTRATION_H
++
++#include "sipfsmbase.h"
++#include "definitions.h"
++
++
++class SipRegistration : public SipFsmBase
++{
++public:
++	SipRegistration(SipFsm *par, QString localIp, int localPort, QString Username, QString Password, QString ProxyName, int ProxyPort);
++	~SipRegistration();
++	virtual int  FSM(int Event, SipMsg *sipMsg=0, void *Value=0);
++	virtual QString type()     { return "REGISTRATION"; };
++	bool isRegistered()        { return (State == SIP_REG_REGISTERED); }
++	QString registeredTo()     { return ProxyUrl->getHost(); }
++	QString registeredAs()     { return MyContactUrl->getUser(); }
++	int     registeredPort()   { return ProxyUrl->getPort(); }
++	QString registeredPasswd() { return MyPassword; }
++
++private:
++	void SendRegister(SipMsg *authMsg=0);
++
++	int State;
++	int Expires;
++	QString sipLocalIp;
++	int sipLocalPort;
++	int regRetryCount;
++
++	SipUrl *ProxyUrl;
++	QString MyPassword;
++	int cseq;
++};
++
++#endif
+
+Added: konference/src/sip/sipthread.cpp
+===================================================================
+--- konference/src/sip/sipthread.cpp	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipthread.cpp	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,266 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include <qapplication.h>
++
++#include "sipcall.h"
++
++#include "sipthread.h"
++
++/**********************************************************************
++SipThread
++ 
++The main SIP thread that polls for events and handles communication
++with the user via the SipContainer class
++**********************************************************************/
++
++SipThread::SipThread(SipContainer *container)
++{
++	m_sipContainer = container;
++}
++
++void SipThread::run()
++{
++	SipThreadWorker();
++}
++
++void SipThread::SipThreadWorker()
++{
++	FrontEndActive = false;
++	rnaTimer = -1;
++
++	sipFsm = new SipFsm(m_sipContainer);
++
++	if (sipFsm->SocketOpenedOk())
++	{
++		while(!m_sipContainer->killThread())
++		{
++			int OldCallState = CallState;
++
++			// This blocks for timeout or data in Linux
++			CheckNetworkEvents(sipFsm);
++			CheckUIEvents(sipFsm);
++			CheckRegistrationStatus(sipFsm); // Probably don't need to do this every 1/2 sec but this is a fallout of a non event-driven arch.
++			sipFsm->HandleTimerExpiries();
++			ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
++
++			// A Ring No Answer timer runs to send calls to voicemail after x seconds
++			if ((CallState == SIP_ICONNECTING) && (rnaTimer != -1))
++			{
++				if (--rnaTimer < 0)
++				{
++					rnaTimer = -1;
++					//vxmlCallActive = true;
++					sipFsm->Answer(true, "", false);
++				}
++			}
++
++			ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
++
++			//TODO i dont know if it would be better to
++			// only let the container send events
++			m_sipContainer->getEventQueueMutex()->lock();
++			if ((OldCallState != CallState)/* && (eventWindow) -the parent is there for sure-*/)
++				QApplication::postEvent(m_sipContainer->getParent(), new SipEvent(SipEvent::SipStateChange));
++			m_sipContainer->getEventQueueMutex()->unlock();
++		}
++	}
++
++	delete sipFsm;
++}
++
++void SipThread::CheckUIEvents(SipFsm *sipFsm)
++{
++	QString event;
++	QStringList::Iterator it;
++
++	// Check why we awoke
++	event = "";
++	m_sipContainer->getEventQueueMutex()->lock();
++	if (!m_sipContainer->getEventQueue()->empty())
++	{
++		it = m_sipContainer->getEventQueue()->begin();
++		event = *it;
++		m_sipContainer->getEventQueue()->remove(it);
++	}
++	m_sipContainer->getEventQueueMutex()->unlock();
++
++	if (event == "PLACECALL")
++	{
++		m_sipContainer->getEventQueueMutex()->lock();
++		it = m_sipContainer->getEventQueue()->begin();
++		QString Mode = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString Uri = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString Name = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString UseNat = *it;
++		m_sipContainer->getEventQueue()->remove(it);
++		m_sipContainer->getEventQueueMutex()->unlock();
++		sipFsm->NewCall(Mode == "AUDIOONLY" ? true : false, Uri, Name, Mode, UseNat == "DisableNAT" ? true : false);
++	}
++	else if (event == "ANSWERCALL")
++	{
++		m_sipContainer->getEventQueueMutex()->lock();
++		it = m_sipContainer->getEventQueue()->begin();
++		QString Mode = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString UseNat = *it;
++		m_sipContainer->getEventQueue()->remove(it);
++		m_sipContainer->getEventQueueMutex()->unlock();
++		sipFsm->Answer(Mode == "AUDIOONLY" ? true : false, Mode, UseNat == "DisableNAT" ? true : false);
++	}
++	else if (event == "HANGUPCALL")
++		sipFsm->HangUp();
++	else if (event == "UIOPENED")
++	{
++		sipFsm->StatusChanged("OPEN");
++		FrontEndActive = true;
++	}
++	else if (event == "UICLOSED")
++	{
++		sipFsm->StatusChanged("CLOSED");
++		FrontEndActive = false;
++	}
++	else if (event == "UIWATCH")
++	{
++		QString uri;
++		do
++		{
++			m_sipContainer->getEventQueueMutex()->lock();
++			it = m_sipContainer->getEventQueue()->begin();
++			uri = *it;
++			m_sipContainer->getEventQueue()->remove(it);
++			m_sipContainer->getEventQueueMutex()->unlock();
++			if (uri.length() > 0)
++				sipFsm->CreateWatcherFsm(uri);
++		}
++		while (uri.length() > 0);
++	}
++	else if (event == "UISTOPWATCHALL")
++		sipFsm->StopWatchers();
++	else if (event == "SENDIM")
++	{
++		m_sipContainer->getEventQueueMutex()->lock();
++		it = m_sipContainer->getEventQueue()->begin();
++		QString DestUrl = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString CallId = *it;
++		it = m_sipContainer->getEventQueue()->remove(it);
++		QString imMsg = *it;
++		m_sipContainer->getEventQueue()->remove(it);
++		m_sipContainer->getEventQueueMutex()->unlock();
++		sipFsm->SendIM(DestUrl, CallId, imMsg);
++	}
++
++	ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
++}
++
++void SipThread::CheckRegistrationStatus(SipFsm *sipFsm)
++{
++	m_sipContainer->notifyRegistrationStatus(sipFsm->isRegistered(), sipFsm->registeredTo(),
++	                                       sipFsm->registeredAs());
++}
++
++void SipThread::CheckNetworkEvents(SipFsm *sipFsm)
++{
++	// Check for incoming SIP messages
++	sipFsm->CheckRxEvent();
++
++	// We only handle state changes in the "primary" call; we ignore additional calls which are
++	// currently just rejected with busy
++	ChangePrimaryCallState(sipFsm, sipFsm->getPrimaryCallState());
++}
++
++
++void SipThread::ChangePrimaryCallState(SipFsm *sipFsm, int NewState)
++{
++	int OldState = CallState;
++	CallState = NewState;
++	m_sipContainer->notifyCallState(CallState);
++
++	if (OldState != CallState)
++	{
++		if (CallState == SIP_IDLE)
++		{
++			callerUser = "";
++			callerName = "";
++			callerUrl = "";
++			inAudioOnly = true;
++			m_sipContainer->notifyCallerDetails(callerUser, callerName, callerUrl, inAudioOnly);
++			remoteIp = "0.0.0.0";
++			remoteAudioPort = -1;
++			remoteVideoPort = -1;
++			audioPayload = -1;
++			dtmfPayload = -1;
++			videoPayload = -1;
++			audioCodec = "";
++			videoCodec = "";
++			videoRes = "";
++			m_sipContainer->notifySDPDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
++		}
++
++		if (CallState == SIP_ICONNECTING)
++		{
++			// new incoming call; get the caller info
++			m_sipContainer->getEventQueueMutex()->lock();
++			SipCall *call = sipFsm->MatchCall(sipFsm->getPrimaryCall());
++			if (call != 0)
++			{
++				call->GetIncomingCaller(callerUser, callerName, callerUrl, inAudioOnly);
++				m_sipContainer->notifyCallerDetails(callerUser, callerName, callerUrl, inAudioOnly);
++			}
++			m_sipContainer->getEventQueueMutex()->unlock();
++
++			rnaTimer = 10;//TODO atoi((const char *)gContext->GetSetting("TimeToAnswer")) * SIP_POLL_PERIOD;
++		}
++		else
++			rnaTimer = -1;
++
++
++		if (CallState == SIP_CONNECTED)
++		{
++			// connected call; get the SDP info
++			m_sipContainer->getEventQueueMutex()->lock();
++			SipCall *call = sipFsm->MatchCall(sipFsm->getPrimaryCall());
++			if (call != 0)
++			{
++				call->GetSdpDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
++				m_sipContainer->notifySDPDetails(remoteIp, remoteAudioPort, audioPayload, audioCodec, dtmfPayload, remoteVideoPort, videoPayload, videoCodec, videoRes);
++
++			}
++			m_sipContainer->getEventQueueMutex()->unlock();
++
++		}
++
++		//TODO sipstack should not have to know anything about the gui!!!
++		if ((CallState == SIP_ICONNECTING) && (FrontEndActive == false))
++		{
++			// No application running to tell of the incoming call
++			// Either alert via on-screen popup or send to voicemail
++			//			SipNotify *notify = new SipNotify();
++			//			notify->Display(callerName, callerUrl);
++			//			delete notify;
++		}
++	}
++}
++
++
+
+Added: konference/src/sip/sipthread.h
+===================================================================
+--- konference/src/sip/sipthread.h	2005-07-01 19:18:35 UTC (rev 73)
++++ konference/src/sip/sipthread.h	2005-07-03 16:15:04 UTC (rev 74)
+@@ -0,0 +1,65 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B?hme                                     *
++ *   malte.boehme at rwth-aachen.de                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPTHREAD_H
++#define SIPTHREAD_H
++#include <qthread.h>
++
++#include "sipfsm.h"
++#include "sipcontainer.h"
++
++/**
++ at author Malte B?hme
++*/
++class SipThread : public QThread
++{
++public:
++	SipThread(SipContainer *container);
++	~SipThread() {};
++	virtual void run();
++	QString getLocalIP(){return sipFsm->getLocalIpAddress();};
++	
++private:
++	void SipThreadWorker();
++	void CheckUIEvents(SipFsm *sipFsm);
++	void CheckNetworkEvents(SipFsm *sipFsm);
++	void CheckRegistrationStatus(SipFsm *sipFsm);
++	void ChangePrimaryCallState(SipFsm *sipFsm, int NewState);
++	
++	SipContainer *m_sipContainer;
++	SipFsm *sipFsm;
++	bool FrontEndActive;
++
++	int CallState;
++	QString callerUser, callerName, callerUrl;
++	bool inAudioOnly;
++	QString remoteIp;
++	int remoteAudioPort;
++	int remoteVideoPort;
++	int audioPayload;
++	int dtmfPayload;
++	int videoPayload;
++	QString audioCodec;
++	QString videoCodec;
++	QString videoRes;
++	int rnaTimer;                         // Ring No Answer Timer
++};
++
++
++#endif
+
+
+

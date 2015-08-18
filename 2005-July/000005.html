@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r72 - konference/src
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r72%20-%20konference/src&In-Reply-To=%3C200507011917.j61JHk1t017418%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000006.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r72 - konference/src</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r72%20-%20konference/src&In-Reply-To=%3C200507011917.j61JHk1t017418%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r72 - konference/src">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul  1 21:17:46 CEST 2005</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000006.html">[Konference-commits] r73 - konference/src/sip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5">[ date ]</a>
+              <a href="thread.html#5">[ thread ]</a>
+              <a href="subject.html#5">[ subject ]</a>
+              <a href="author.html#5">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-07-01 21:17:45 +0200 (Fri, 01 Jul 2005)
+New Revision: 72
+
+Modified:
+   konference/src/konference_part.cpp
+Log:
+added some debuging output to tell us what codec is in use
+
+
+Modified: konference/src/konference_part.cpp
+===================================================================
+--- konference/src/konference_part.cpp	2005-06-05 12:53:25 UTC (rev 71)
++++ konference/src/konference_part.cpp	2005-07-01 19:17:45 UTC (rev 72)
+@@ -315,11 +315,21 @@
+ 	//we do this here, so that we have more control over the audio-codec
+ 	// may be usefull for changing quality etc.
+ 	if (audioPayload == RTP_PAYLOAD_G711U)
++	{
++		kdDebug() &lt;&lt; &quot;using g711ulaw&quot; &lt;&lt; endl;
++
+ 		m_audioCodec = new g711ulaw();
++	}
+ 	else if (audioPayload == RTP_PAYLOAD_G711A)
++	{
++		kdDebug() &lt;&lt; &quot;using g711alaw&quot; &lt;&lt; endl;
+ 		m_audioCodec = new g711alaw();
++	}
+ 	else if (audioPayload == RTP_PAYLOAD_GSM)
++	{
++		kdDebug() &lt;&lt; &quot;using gsm&quot; &lt;&lt; endl;
+ 		m_audioCodec = new gsmCodec();
++	}
+ 	else
+ 	{
+ 		kdDebug() &lt;&lt; &quot;Unknown audio payload &quot; &lt;&lt; audioPayload &lt;&lt; endl;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000006.html">[Konference-commits] r73 - konference/src/sip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5">[ date ]</a>
+              <a href="thread.html#5">[ thread ]</a>
+              <a href="subject.html#5">[ subject ]</a>
+              <a href="author.html#5">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>

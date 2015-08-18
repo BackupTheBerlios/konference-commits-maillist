@@ -1,0 +1,2865 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r66 - konference/src/sip
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r66%20-%20konference/src/sip&In-Reply-To=%3C200506021554.j52Fs2mR016199%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000000.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r66 - konference/src/sip</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r66%20-%20konference/src/sip&In-Reply-To=%3C200506021554.j52Fs2mR016199%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r66 - konference/src/sip">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Thu Jun  2 17:54:02 CEST 2005</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000000.html">[Konference-commits] r67 - konference/src/dialogs/wizard
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9">[ date ]</a>
+              <a href="thread.html#9">[ thread ]</a>
+              <a href="subject.html#9">[ subject ]</a>
+              <a href="author.html#9">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-06-02 17:54:01 +0200 (Thu, 02 Jun 2005)
+New Revision: 66
+
+Added:
+   konference/src/sip/sipcallid.cpp
+   konference/src/sip/sipcallid.h
+   konference/src/sip/sipmsg.cpp
+   konference/src/sip/sipmsg.h
+   konference/src/sip/sipsdp.cpp
+   konference/src/sip/sipsdp.h
+   konference/src/sip/sipurl.cpp
+   konference/src/sip/sipurl.h
+   konference/src/sip/sipxpidf.cpp
+   konference/src/sip/sipxpidf.h
+Removed:
+   konference/src/sip/sipstack.cpp
+   konference/src/sip/sipstack.h
+Modified:
+   konference/src/sip/Makefile.am
+   konference/src/sip/sipfsm.cpp
+   konference/src/sip/sipfsm.h
+Log:
+split sipstack.cpp/h into multiple files (one per class)
+plus some minor cosmetic changes
+
+
+Modified: konference/src/sip/Makefile.am
+===================================================================
+--- konference/src/sip/Makefile.am	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/Makefile.am	2005-06-02 15:54:01 UTC (rev 66)
+@@ -2,5 +2,7 @@
+ METASOURCES = AUTO
+ libsip_la_LDFLAGS = $(all_libraries)
+ noinst_LTLIBRARIES = libsip.la
+-libsip_la_SOURCES = sipfsm.cpp sipstack.cpp md5digest.cpp
+-noinst_HEADERS = sipfsm.h sipstack.h md5digest.h
++libsip_la_SOURCES = sipfsm.cpp md5digest.cpp sipmsg.cpp sipcallid.cpp \
++	sipsdp.cpp sipxpidf.cpp sipurl.cpp
++noinst_HEADERS = sipfsm.h md5digest.h sipmsg.h sipcallid.h sipsdp.h sipxpidf.h \
++	sipurl.h
+
+Added: konference/src/sip/sipcallid.cpp
+===================================================================
+--- konference/src/sip/sipcallid.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipcallid.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,57 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include &lt;qdatetime.h&gt;
++
++
++#include &quot;sipcallid.h&quot;
++
++int callIdEnumerator = 0x6243; // Random-ish number
++
++SipCallId::SipCallId(QString ip)
++{
++	Generate(ip);
++}
++
++SipCallId::~SipCallId()
++{}
++
++void SipCallId::Generate(QString ip)
++{
++	QString now = (QDateTime::currentDateTime()).toString(&quot;hhmmsszzz-ddMMyyyy&quot;);
++	thisCallid = QString::number(callIdEnumerator++,16) + &quot;-&quot; + now + &quot;@&quot; + ip;
++}
++
++bool SipCallId::operator== (SipCallId &amp;rhs)
++{
++	bool match = (thisCallid.compare(rhs.string()) == 0);
++	return match;
++}
++
++SipCallId &amp;SipCallId::operator= (SipCallId &amp;rhs)
++{
++	if (this == &amp;rhs)
++		return *this;
++
++	thisCallid = rhs.thisCallid;
++
++	return *this;
++}
++
+
+Added: konference/src/sip/sipcallid.h
+===================================================================
+--- konference/src/sip/sipcallid.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipcallid.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,45 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPCALLID_H
++#define SIPCALLID_H
++
++#include &lt;qstring.h&gt;
++
++/**
+<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">+ at author</A> Malte B&#246;hme
++*/
++class SipCallId
++{
++public:
++    SipCallId(QString ip);
++    SipCallId() { thisCallid = &quot;&quot;;}
++    SipCallId(SipCallId &amp;id) { thisCallid = id.string();}
++    ~SipCallId();
++    void Generate(QString ip);
++    void setValue(QString v) { thisCallid = v; }
++    const QString string() { return thisCallid; }
++    bool operator== (SipCallId &amp;rhs);
++    SipCallId &amp;operator= (SipCallId &amp;rhs);
++
++private:
++    QString thisCallid;
++};
++
++#endif
+
+Modified: konference/src/sip/sipfsm.cpp
+===================================================================
+--- konference/src/sip/sipfsm.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipfsm.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -53,8 +53,9 @@
+ using namespace std;
+ 
+ #include &quot;sipfsm.h&quot;
++#include &quot;sipsdp.h&quot;
++#include &quot;sipxpidf.h&quot;
+ 
+-
+ // Static variables for the debug file used
+ QFile *debugFile;
+ QTextStream *debugStream;
+
+Modified: konference/src/sip/sipfsm.h
+===================================================================
+--- konference/src/sip/sipfsm.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipfsm.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -35,7 +35,9 @@
+ #include &lt;sys/ioctl.h&gt;
+ #include &lt;fcntl.h&gt;
+ 
+-#include &quot;sipstack.h&quot;
++#include &quot;sipcallid.h&quot;
++#include &quot;sipmsg.h&quot;
++#include &quot;sipurl.h&quot;
+ 
+ class SipEvent : public QCustomEvent
+ {
+
+Added: konference/src/sip/sipmsg.cpp
+===================================================================
+--- konference/src/sip/sipmsg.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipmsg.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,690 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include &lt;iostream&gt;
++using namespace std;
++ 
++#include &lt;qdom.h&gt;
++
++#include &quot;sipcallid.h&quot;
++#include &quot;sipsdp.h&quot;
++#include &quot;sipxpidf.h&quot;
++#include &quot;sipurl.h&quot;
++#include &quot;md5digest.h&quot;
++
++#include &quot;sipmsg.h&quot;
++
++
++SipMsg::SipMsg(QString Method)
++{
++	thisMethod = Method;
++	Msg = &quot;&quot;;
++	statusCode = 0;
++	statusText = &quot;&quot;;
++	cseqValue = 0;
++	cseqMethod = &quot;&quot;;
++	Expires = -1;
++	msgContainsSDP = false;
++	msgContainsXPIDF = false;
++	msgContainsPlainText = false;
++	PlainTextContent = &quot;&quot;;
++	callId = 0;
++	sdp = 0;
++	xpidf = 0;
++	contactUrl = 0;
++	recRouteUrl = 0;
++	fromUrl = 0;
++	toUrl = 0;
++	completeVia = &quot;&quot;;
++	completeRR = &quot;&quot;;
++	completeTo = &quot;&quot;;
++	completeFrom = &quot;&quot;;
++	viaIp = &quot;&quot;;
++	viaPort = 0;
++}
++
++SipMsg::SipMsg()
++{
++	thisMethod = &quot;&quot;;
++	Msg = &quot;&quot;;
++	statusCode = 0;
++	statusText = &quot;&quot;;
++	cseqValue = 0;
++	cseqMethod = &quot;&quot;;
++	Expires = -1;
++	msgContainsSDP = false;
++	msgContainsXPIDF = false;
++	msgContainsPlainText = false;
++	PlainTextContent = &quot;&quot;;
++	callId = 0;
++	sdp = 0;
++	xpidf = 0;
++	contactUrl = 0;
++	recRouteUrl = 0;
++	fromUrl = 0;
++	toUrl = 0;
++	completeVia = &quot;&quot;;
++	completeRR = &quot;&quot;;
++	completeTo = &quot;&quot;;
++	completeFrom = &quot;&quot;;
++	viaIp = &quot;&quot;;
++	viaPort = 0;
++}
++
++SipMsg::~SipMsg()
++{
++	if (callId)
++		delete callId;
++	if (sdp)
++		delete sdp;
++	if (xpidf)
++		delete xpidf;
++	if (contactUrl)
++		delete contactUrl;
++	if (recRouteUrl)
++		delete recRouteUrl;
++	if (fromUrl)
++		delete fromUrl;
++	if (toUrl)
++		delete toUrl;
++}
++
++SipMsg &amp;SipMsg::operator= (SipMsg &amp;rhs)
++{
++	if (this == &amp;rhs)
++		return *this;
++
++	Msg = rhs.Msg;
++	thisMethod = rhs.thisMethod;
++	statusCode = rhs.statusCode;
++	statusText = rhs.statusText;
++	if (callId != 0)
++		callId = new SipCallId(*rhs.callId);
++	cseqValue = rhs.cseqValue;
++	cseqMethod = rhs.cseqMethod;
++	msgContainsSDP = rhs.msgContainsSDP;
++	msgContainsXPIDF = rhs.msgContainsXPIDF;
++	msgContainsPlainText = rhs.msgContainsPlainText;
++	PlainTextContent = rhs.PlainTextContent;
++
++
++	// Note: Content not copied
++	sdp = 0;
++	xpidf = 0;
++
++	return *this;
++}
++
++void SipMsg::addRequestLine(SipUrl &amp;Url)
++{
++	Msg = thisMethod + &quot; &quot; + Url.formatReqLineUrl() + &quot; SIP/2.0\r\n&quot;;
++}
++
++void SipMsg::addStatusLine(int Code)
++{
++	Msg =  &quot;SIP/2.0 &quot; + QString::number(Code) + &quot; &quot; + StatusPhrase(Code) + &quot;\r\n&quot;;
++}
++
++void SipMsg::addVia(QString Hostname, int Port)
++{
++	Msg += &quot;Via: SIP/2.0/UDP &quot; + Hostname + &quot;:&quot; + QString::number(Port) + &quot;\r\n&quot;;
++}
++
++void SipMsg::addGenericLine(QString Line)
++{
++	Msg += Line;
++}
++
++void SipMsg::addTo(SipUrl &amp;to, QString tag, QString epid)
++{
++	Msg += &quot;To: &quot; + to.string();
++	if (tag.length() &gt; 0)
++		Msg += &quot;;tag=&quot; + tag;
++	if (epid.length() &gt; 0)
++		Msg += &quot;;epid=&quot; + epid;
++	Msg += &quot;\r\n&quot;;
++}
++
++void SipMsg::addFrom(SipUrl &amp;from, QString tag, QString epid)
++{
++	Msg += &quot;From: &quot; + from.string();
++	if (tag.length() &gt; 0)
++		Msg += &quot;;tag=&quot; + tag;
++	if (epid.length() &gt; 0)
++		Msg += &quot;;epid=&quot; + epid;
++	Msg += &quot;\r\n&quot;;
++}
++
++void SipMsg::addCallId(SipCallId id)
++{
++	Msg += &quot;Call-ID: &quot; + id.string() + &quot;\r\n&quot;;
++}
++
++void SipMsg::addCSeq(int c)
++{
++	Msg += QString(&quot;CSeq: &quot;) + QString::number(c) + &quot; &quot; + thisMethod + &quot;\r\n&quot;;
++}
++
++void SipMsg::addContact(SipUrl contact, QString Methods)
++{
++	Msg += &quot;Contact: &quot; + contact.formatContactUrl();
++	if (Methods.length()&gt;0)
++		Msg += &quot;;methods=\&quot;&quot; + Methods + &quot;\&quot;&quot;;
++	Msg += &quot;\r\n&quot;;
++}
++
++void SipMsg::addUserAgent(QString ua)
++{
++	Msg += &quot;User-Agent: &quot; + ua + &quot;\r\n&quot;;
++}
++
++void SipMsg::addAllow()
++{
++	Msg += &quot;Allow: INVITE, ACK, CANCEL, BYE, INFO, NOTIFY\r\n&quot;;
++}
++
++void SipMsg::addEvent(QString Event)
++{
++	Msg += &quot;Event: &quot; + Event + &quot;\r\n&quot;;
++}
++
++void SipMsg::addSubState(QString State, int Expires)
++{
++	Msg += &quot;Subscription-State: &quot; + State;
++	if (Expires != -1)
++		Msg += &quot;;expires=&quot; + QString::number(Expires);
++	Msg += &quot;\r\n&quot;;
++}
++
++void SipMsg::addAuthorization(QString authMethod, QString Username, QString Password, QString Realm, QString Nonce, QString Uri, bool Proxy)
++{
++	// Calculate the Digest key for the response
++	HASHHEX HA1;
++	HASHHEX HA2 = &quot;&quot;;
++	HASHHEX Response;
++	DigestCalcHA1(&quot;md5&quot;, Username, Realm, Password, Nonce, &quot;&quot;, HA1);
++	DigestCalcResponse(HA1, Nonce, &quot;&quot;, &quot;&quot;, &quot;&quot;, thisMethod, Uri, &quot;&quot;, HA2, Response);
++
++	if (Proxy)
++		Msg += &quot;Proxy-Authorization: &quot; + authMethod;
++	else
++		Msg += &quot;Authorization: &quot; + authMethod;
++	Msg += &quot; username=\&quot;&quot; + Username + &quot;\&quot;&quot;;
++	Msg += &quot;, realm=\&quot;&quot; + Realm + &quot;\&quot;&quot;;
++	Msg += &quot;, uri=\&quot;&quot; + Uri + &quot;\&quot;&quot;;
++	Msg += &quot;, nonce=\&quot;&quot; + Nonce + &quot;\&quot;&quot;;
++	Msg += QString(&quot;, response=\&quot;&quot;) + Response + &quot;\&quot;&quot;;
++	Msg += &quot;, algorithm=md5\r\n&quot;;
++}
++
++void SipMsg::addProxyAuthorization(QString authMethod, QString Username, QString Password, QString Realm, QString Nonce, QString Uri)
++{
++	addAuthorization(authMethod, Username, Password, Realm, Nonce, Uri, true);
++}
++
++void SipMsg::addExpires(int e)
++{
++	Msg += &quot;Expires: &quot; + QString::number(e) + &quot;\r\n&quot;;
++}
++
++void SipMsg::addNullContent()
++{
++	Msg += &quot;Content-Length: 0\r\n\r\n&quot;;
++}
++
++void SipMsg::addContent(QString contentType, QString contentData)
++{
++	Msg += QString(&quot;Content-Type: &quot;) + contentType + &quot;\r\n&quot;
++	       &quot;Content-Length: &quot; + QString::number(contentData.length()) + &quot;\r\n&quot;
++	       &quot;\r\n&quot;
++	       + contentData;
++}
++
++void SipMsg::insertVia(QString Hostname, int Port)
++{
++	// Find the first Via statement so we can insert ourself
++	QStringList::Iterator it;
++	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
++	{
++		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
++			break;
++	}
++
++	// Insert new Via
++	QString Via = &quot;Via: SIP/2.0/UDP &quot; + Hostname + &quot;:&quot; + QString::number(Port);
++	if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
++		attList.insert(it, Via);
++	else
++		attList.insert(attList.at(1), Via);
++
++	// And recreate the completed msg
++	Msg = attList.join(&quot;\r\n&quot;);
++}
++
++void SipMsg::removeVia()
++{
++	// Find the first Via statement
++	QStringList::Iterator it;
++	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
++	{
++		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
++			break;
++	}
++
++	// Remove the first Via. It may be on a line on its own (remove line) or may be part of a comma-separated list
++	if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
++	{
++		int commaPosn;
++		if ((commaPosn = (*it).find(',')) != -1)
++			(*it).remove(5, commaPosn-4);
++		else
++			attList.remove(it); // Should we check this is us first?
++	}
++
++	// And recreate the completed msg
++	Msg = attList.join(&quot;\r\n&quot;);
++
++	// Now need to re-decode the Via to get the top message
++	viaIp = &quot;&quot;;
++	viaPort = 0;
++	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
++	{
++		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
++		{
++			decodeVia(*it);
++			break;
++		}
++	}
++}
++
++QString SipMsg::StatusPhrase(int Code)
++{
++	switch (Code)
++	{
++	case 100: return &quot;Trying&quot;;
++	case 180: return &quot;Ringing&quot;;
++	case 200: return &quot;OK&quot;;
++	case 400: return &quot;Bad Request&quot;;
++	case 404: return &quot;Not Found&quot;;
++	case 406: return &quot;Not Acceptable&quot;;
++	case 481: return &quot;Call Leg/Transaction Does Not Exist&quot;;
++	case 486: return &quot;Busy Here&quot;;
++	case 488: return &quot;Not Acceptable Here&quot;;
++	}
++	return &quot;Dont know&quot;;
++}
++
++
++void SipMsg::decode(QString sipString)
++{
++	Msg = sipString; // Save in case we want to forward
++
++	// Split the attribute lines into a string list for easier access
++	attList = QStringList::split(&quot;\r\n&quot;, sipString, true);
++
++	// Decode main body of SIP message
++	decodeRequestLine(attList[0]);
++	QStringList::Iterator it;
++	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
++		decodeLine(*it);
++
++	// Deccode main body of SIP message
++	if (msgContainsSDP)
++		decodeSdp(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
++	if (msgContainsXPIDF)
++		decodeXpidf(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
++	if (msgContainsPlainText)
++		decodePlainText(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
++}
++
++void SipMsg::decodeLine(QString line)
++{
++	if (line.find(&quot;Via:&quot;, 0, false) == 0)
++		decodeVia(line);
++	else if (line.find(&quot;To:&quot;, 0, false) == 0)
++		decodeTo(line);
++	else if (line.find(&quot;From:&quot;, 0, false) == 0)
++		decodeFrom(line);
++	else if (line.find(&quot;Contact:&quot;, 0, false) == 0)
++		decodeContact(line);
++	else if (line.find(&quot;Record-Route:&quot;, 0, false) == 0)
++		decodeRecordRoute(line);
++	else if (line.find(&quot;Call-ID:&quot;, 0, false) == 0)
++		decodeCallid(line);
++	else if (line.find(&quot;CSeq:&quot;, 0, false) == 0)
++		decodeCseq(line);
++	else if (line.find(&quot;Expires:&quot;, 0, false) == 0)
++		decodeExpires(line);
++	else if (line.find(&quot;Content-Type:&quot;, 0, false) == 0)
++		decodeContentType(line);
++	else if (line.find(&quot;WWW-Authenticate:&quot;, 0, false) == 0)
++		decodeAuthenticate(line);
++	else if (line.find(&quot;Proxy-Authenticate:&quot;, 0, false) == 0)
++		decodeAuthenticate(line);
++}
++
++void SipMsg::decodeRequestLine(QString line)
++{
++	QString Token = line.section(' ', 0, 0);
++	if ((Token == &quot;INVITE&quot;) || (Token == &quot;ACK&quot;) || (Token == &quot;BYE&quot;) || (Token == &quot;CANCEL&quot;) || (Token == &quot;REGISTER&quot;) || (Token == &quot;SUBSCRIBE&quot;) || (Token == &quot;NOTIFY&quot;) || (Token == &quot;MESSAGE&quot;) || (Token == &quot;INFO&quot;))
++		thisMethod = Token;
++	else if (Token == &quot;SIP/2.0&quot;)
++	{
++		thisMethod = &quot;STATUS&quot;;
++		statusCode = (line.section(' ', 1, 1)).toInt();
++		statusText = line.section(' ', 2, -1);
++	}
++	else
++		thisMethod = &quot;UNKNOWN-&quot; + Token;
++}
++
++void SipMsg::decodeVia(QString via)
++{
++	if ((via.find(&quot;Via: SIP/2.0/UDP&quot;, 0, false) == 0) &amp;&amp; (viaIp.length() == 0))
++	{
++		QString str1 = via.mid(17);
++		QString str2 = str1.section(';', 0, 0);
++		QString str3 = str2.section(',', 0, 0); // We are only interested in the value of the first one, so ignore multiples per line
++		viaIp = str3.section(':', 0, 0);
++		QString viaPortStr = str3.section(':', 1, 1);
++		viaPort = (viaPortStr.length() != 0) ? viaPortStr.toInt() : 5060;
++	}
++	completeVia += via + &quot;\r\n&quot;;
++}
++
++void SipMsg::decodeAuthenticate(QString auth)
++{
++	authMethod = auth.section(' ', 1, 1);
++	QString Params = auth.section(' ', 2);
++	while (Params.length() &gt; 0)
++	{
++		QString thisParam = Params.section(',', 0, 0);
++		Params.remove(0, thisParam.length()+1);
++		QString temp = Params.stripWhiteSpace();
++		Params = temp;
++
++		QString thisParamNoWs = thisParam.stripWhiteSpace();
++		QString ParamName  = thisParamNoWs.section('=', 0, 0);
++		QString ParamValue = thisParamNoWs.section('=', 1, 1);
++		QString ParamValueNoQuotes = (ParamValue.startsWith(&quot;\&quot;&quot;)) ? ParamValue.section('\&quot;', 1, 1) : ParamValue;
++
++		if (ParamName == &quot;realm&quot;)
++			authRealm = ParamValueNoQuotes;
++		else if (ParamName == &quot;nonce&quot;)
++			authNonce = ParamValueNoQuotes;
++		else if (ParamName == &quot;qop&quot;)
++		{
++			if (ParamValueNoQuotes != &quot;auth&quot;)
++				cout &lt;&lt; &quot;SIP: QOP value not set to AUTH in Challenge\n&quot;;
++		}
++		else
++			cout &lt;&lt; &quot;SIP: Unknown parameter in -Authenticate; &quot; &lt;&lt; ParamName &lt;&lt; endl;
++	}
++}
++
++void SipMsg::decodeFrom(QString from)
++{
++	if (fromUrl != 0)
++		delete fromUrl;
++	fromUrl = decodeUrl(from.mid(6)); // Remove &quot;from: &quot; first
++	QString temp1 = from.section(&quot;;tag=&quot;, 1, 1);
++	QString temp2 = from.section(&quot;;epid=&quot;, 1, 1);
++	fromTag = temp1.section(&quot;;&quot;, 0, 0);
++	fromEpid = temp2.section(&quot;;&quot;, 0, 0);
++	completeFrom = from + &quot;\r\n&quot;;
++}
++
++void SipMsg::decodeTo(QString to)
++{
++	if (toUrl != 0)
++		delete toUrl;
++	toUrl = decodeUrl(to.mid(4)); // Remove &quot;to: &quot; first
++	QString temp = to.section(&quot;;tag=&quot;, 1, 1);
++	toTag = temp.section(&quot;;&quot;, 0, 0);
++	completeTo = to + &quot;\r\n&quot;;
++}
++
++void SipMsg::decodeContact(QString contact)
++{
++	if (contactUrl != 0)
++		delete contactUrl;
++	contactUrl = decodeUrl(contact.mid(9)); // Remove &quot;Contact: &quot; first
++	QString temp = contact.section(&quot;;expires=&quot;, 1, 1);
++	QString expiresStr = temp.section(&quot;;&quot;, 0, 0);
++	if (expiresStr.length() &gt; 0)
++		Expires = expiresStr.toInt();
++}
++
++void SipMsg::decodeRecordRoute(QString rr)
++{
++	if (recRouteUrl != 0)
++		delete recRouteUrl;
++	recRouteUrl = decodeUrl(rr.mid(14)); // Remove &quot;Record-Route: &quot; first
++	completeRR += rr + &quot;\r\n&quot;;
++}
++
++SipUrl *SipMsg::decodeUrl(QString source)
++{
++	QString str1, str2, str3, str4, str5, str6, str7, str8, str9, str10;
++	int Port = 0;
++
++	// Expect one of
++	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;;tag=xxxxx
++	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060;lr=on&gt;
++	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
++	//      abc &lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
++	//      &lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
++	//      sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060
++	str3 = str7 = str9 = &quot;&quot;; // Initialise the important ones
++	str1 = source.section(';', 0, 0); // Ignore any parameters after ';', if one is present
++	if (str1.contains('&lt;'))
++	{
++		str2 = str1.section('&lt;', 0, 0);
++		str3 = (str2.startsWith(&quot;\&quot;&quot;)) ? str2.section('\&quot;', 1, 1) : str2.stripWhiteSpace(); // str3 is the Display Name
++		str4 = str1.section('&lt;', 1, 1);
++		str5 = str4.section('&gt;', 0, 0); // sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">user at host</A>:port
++	}
++	else
++		str5 = str1;
++
++	if (str5.startsWith(&quot;sip:&quot;))
++	{
++		str6 = str5.mid(4);
++		if (str6.contains('@'))
++		{
++			str7 = str6.section('@', 0, 0); // user
++			str8 = str6.section('@', 1, 1); // host:port
++		}
++		else
++		{
++			str7 = &quot;&quot;;
++			str8 = str6; // host:port
++		}
++		str9  = str8.section(':', 0, 0); // host
++		str10 = str8.section(':', 1, 1); // port
++		Port = (str10.length() &gt; 0) ? str10.toInt() : 5060;
++	}
++
++	return new SipUrl(str3, str7, str9, Port);
++}
++
++void SipMsg::decodeCseq(QString cseq)
++{
++	cseqValue = (cseq.section(' ', 1, 1)).toInt();
++	cseqMethod = cseq.section(' ', 2, 2);
++}
++
++void SipMsg::decodeExpires(QString Exp)
++{
++	Expires = (Exp.section(' ', 1, 1)).toInt();
++}
++
++void SipMsg::decodeCallid(QString callid)
++{
++	if (callId == 0)
++		callId = new SipCallId;
++	callId-&gt;setValue(callid.section(' ', 1, 1));
++}
++
++void SipMsg::decodeContentType(QString cType)
++{
++	QString content = cType.section(' ', 1, 1);
++	if (content.startsWith(&quot;application/sdp&quot;))
++		msgContainsSDP = true;
++	if (content.startsWith(&quot;application/xpidf+xml&quot;))
++		msgContainsXPIDF = true;
++	if (content.startsWith(&quot;text/plain&quot;))
++		msgContainsPlainText = true;
++}
++
++
++void SipMsg::decodeSdp(QString content)
++{
++	QStringList sdpList = QStringList::split(&quot;\r\n&quot;, content, true);
++	QStringList::Iterator it;
++	if (sdp != 0)
++		delete sdp;
++	sdp = new SipSdp(&quot;&quot;, 0, 0);
++	QPtrList&lt;sdpCodec&gt; *codecList = 0; // Tracks the media block we are parsing
++	for (it=sdpList.begin(); (it != sdpList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
++	{
++		codecList = decodeSDPLine(*it, codecList);
++	}
++}
++
++void SipMsg::decodeXpidf(QString content)
++{
++	if (xpidf != 0)
++		delete xpidf;
++	xpidf = new SipXpidf();
++
++	QDomDocument xmlContent;
++	xmlContent.setContent(content);
++	QDomElement rootElm = xmlContent.documentElement();
++	QDomNode n = rootElm.firstChild();
++	while (!n.isNull())
++	{
++		QDomElement e = n.toElement();
++		if (!e.isNull())
++		{
++			if (e.tagName() == &quot;address&quot;)
++			{
++				QString uri1, uri2, uri3;
++				// Convert from &quot;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">abc at xyz</A>;blah&quot; to &quot;<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">abc at xyz</A>&quot;
++				uri1 = e.attribute(&quot;uri&quot;);
++				if (uri1.startsWith(&quot;sip:&quot;))
++					uri2 = uri1.mid(4);
++				else
++					uri2 = uri1;
++				uri3 = uri2.section(';',0,0);
++
++				xpidf-&gt;setUserHost(uri3.section('@',0,0), uri3.section('@',1,1));
++			}
++			else if (e.tagName() == &quot;status&quot;)
++				xpidf-&gt;setStatus(e.attribute(&quot;status&quot;));
++			else if (e.tagName() == &quot;msnsubstatus&quot;)
++				xpidf-&gt;setSubStatus(e.attribute(&quot;substatus&quot;));
++		}
++		QDomNode nextNode = n.firstChild();
++		if (nextNode.isNull())
++			nextNode = n.nextSibling();
++		if (nextNode.isNull())
++			nextNode = n.parentNode().nextSibling();
++		n = nextNode;
++	}
++}
++
++void SipMsg::decodePlainText(QString content)
++{
++	PlainTextContent = content;
++}
++
++QPtrList&lt;sdpCodec&gt; *SipMsg::decodeSDPLine(QString sdpLine, QPtrList&lt;sdpCodec&gt; *codecList)
++{
++	if (sdpLine.startsWith(&quot;c=&quot;))
++		decodeSDPConnection(sdpLine);
++	else if (sdpLine.startsWith(&quot;m=&quot;))
++		codecList = decodeSDPMedia(sdpLine);
++	else if (sdpLine.startsWith(&quot;a=&quot;))
++		decodeSDPMediaAttribute(sdpLine, codecList);
++	return codecList;
++}
++
++void SipMsg::decodeSDPConnection(QString c)
++{
++	if (sdp)
++	{
++		sdp-&gt;setMediaIp(c.section(' ', 2, 2));
++	}
++}
++
++QPtrList&lt;sdpCodec&gt; *SipMsg::decodeSDPMedia(QString m)
++{
++	if (sdp)
++	{
++		int c=0;
++		QString s;
++		if (m.startsWith(&quot;m=audio&quot;))
++		{
++			sdp-&gt;setAudioPort((m.section(' ', 1, 1)).toInt());
++			while ((s = m.section(' ', c+3, c+3)) != 0)
++			{
++				sdp-&gt;addAudioCodec(s.toInt(), &quot;&quot;);
++				c++;
++			}
++			return (sdp-&gt;getAudioCodecList());
++		}
++		else if (m.startsWith(&quot;m=video&quot;))
++		{
++			sdp-&gt;setVideoPort((m.section(' ', 1, 1)).toInt());
++			while ((s = m.section(' ', c+3, c+3)) != 0)
++			{
++				sdp-&gt;addVideoCodec(s.toInt(), &quot;&quot;, &quot;&quot;);
++				c++;
++			}
++			return (sdp-&gt;getVideoCodecList());
++		}
++	}
++	return 0;
++}
++
++void SipMsg::decodeSDPMediaAttribute(QString a, QPtrList&lt;sdpCodec&gt; *codecList)
++{
++	if ((codecList != 0) &amp;&amp; ((a.startsWith(&quot;a=rtpmap:&quot;)) || (a.startsWith(&quot;a=fmtp:&quot;))))
++	{
++		QString attrib = a.section(':', 1, 1);
++		int payload = (attrib.section(' ', 0, 0)).toInt();
++
++		sdpCodec *c;
++		for (c=codecList-&gt;first(); c; c=codecList-&gt;next())
++		{
++			if (c-&gt;intValue() == payload)
++			{
++				if (a.startsWith(&quot;a=rtpmap:&quot;))
++					c-&gt;setName(attrib.section(' ', 1, 1));
++				else
++					c-&gt;setFormat(attrib.section(' ', 1, 1));
++			}
++		}
++	}
++}
++
++
++
+
+Added: konference/src/sip/sipmsg.h
+===================================================================
+--- konference/src/sip/sipmsg.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipmsg.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,155 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPMSG_H
++#define SIPMSG_H
++
++#include &lt;qstring.h&gt;
++#include &lt;qstringlist.h&gt;
++#include &lt;qptrlist.h&gt;
++#include &lt;qdatetime.h&gt;
++
++class SipUrl;
++class SipCallId;
++class SipSdp;
++class SipXpidf;
++class sdpCodec;
++
++/**
+<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">+ at author</A> Malte B&#246;hme
++*/
++class SipMsg
++{
++public:
++    SipMsg(QString Method);
++    SipMsg();
++    ~SipMsg();
++    void addRequestLine(SipUrl &amp;Url);
++    void addStatusLine(int Code);
++    void addVia(QString Hostname, int Port);
++    void addTo(SipUrl &amp;to, QString tag=&quot;&quot;, QString epid=&quot;&quot;);
++    void addFrom(SipUrl &amp;from, QString tag=&quot;&quot;, QString epid=&quot;&quot;);
++    void addViaCopy(QString Via)    { addGenericLine(Via); }
++    void addToCopy(QString To)      { addGenericLine(To); }
++    void addFromCopy(QString From)  { addGenericLine(From); }
++    void addRRCopy(QString RR)      { addGenericLine(RR); }
++    void addCallId(SipCallId id);
++    void addCSeq(int c);
++    void addContact(SipUrl contact, QString Methods=&quot;&quot;);
++    void addUserAgent(QString ua=&quot;MythPhone&quot;);     
++    void addAllow();
++    void addEvent(QString Event);
++    void addSubState(QString State, int Expires);
++    void addAuthorization(QString authMethod, QString Username, QString Password, QString realm, QString nonce, QString uri, bool Proxy=false);
++    void addProxyAuthorization(QString authMethod, QString Username, QString Password, QString realm, QString nonce, QString uri);
++    void addExpires(int e);
++    void addNullContent();
++    void addContent(QString contentType, QString contentData);
++    void insertVia(QString Hostname, int Port);
++    void removeVia();
++    QString StatusPhrase(int Code);
++    void decode(QString sipString);
++    QString string() { return Msg; }
++    QString getMethod() { return thisMethod; }
++    int getCSeqValue() { return cseqValue; }
++    QString getCSeqMethod() { return cseqMethod; }
++    int getExpires() { return Expires; }
++    int getStatusCode() { return statusCode; }
++    QString getReasonPhrase() { return statusText; }
++    SipCallId &amp;getCallId() { return *callId; }
++    SipMsg &amp;operator= (SipMsg &amp;rhs);
++    SipSdp *getSdp()         { return sdp; }
++    SipXpidf *getXpidf()     { return xpidf; }
++    QString getPlainText()   { return PlainTextContent; }
++    SipUrl *getContactUrl()  { return contactUrl; }
++    SipUrl *getRecRouteUrl() { return recRouteUrl; }
++    SipUrl *getFromUrl()     { return fromUrl; }
++    SipUrl *getToUrl()       { return toUrl; }
++    QString getFromTag()     { return fromTag; }
++    QString getFromEpid()    { return fromEpid; }
++    QString getToTag()       { return toTag; }
++    QString getCompleteTo()  { return completeTo; }
++    QString getCompleteFrom(){ return completeFrom; }
++    QString getCompleteVia() { return completeVia; }
++    QString getCompleteRR()  { return completeRR; }
++    QString getViaIp()       { return viaIp; }
++    int     getViaPort()     { return viaPort; }
++    QString getAuthMethod()  { return authMethod; }
++    QString getAuthRealm()   { return authRealm; }
++    QString getAuthNonce()   { return authNonce; } 
++    void    addGenericLine(QString Line);
++
++
++private:
++    void decodeLine(QString line);
++    void decodeRequestLine(QString line);
++    void decodeVia(QString via);
++    void decodeFrom(QString from);
++    void decodeTo(QString to);
++    void decodeContact(QString contact);
++    void decodeRecordRoute(QString rr);
++    void decodeCseq(QString cseq);
++    void decodeExpires(QString Exp);
++    void decodeCallid(QString callid);
++    void decodeAuthenticate(QString auth);
++    void decodeContentType(QString cType);
++    void decodeSdp(QString content);
++    void decodeXpidf(QString content);
++    void decodePlainText(QString content);
++    QPtrList&lt;sdpCodec&gt; *decodeSDPLine(QString sdpLine, QPtrList&lt;sdpCodec&gt; *codecList);
++    void decodeSDPConnection(QString c);
++    QPtrList&lt;sdpCodec&gt; *decodeSDPMedia(QString m);
++    void decodeSDPMediaAttribute(QString a, QPtrList&lt;sdpCodec&gt; *codecList);
++    SipUrl *decodeUrl(QString source);
++
++    QString Msg;
++    QStringList attList;
++    QString thisMethod;
++    int statusCode;
++    QString statusText;
++    SipCallId *callId;
++    int cseqValue;
++    QString cseqMethod;
++    int Expires;
++    bool msgContainsSDP;
++    bool msgContainsXPIDF;
++    bool msgContainsPlainText;
++    SipSdp *sdp;
++    SipXpidf *xpidf;
++    QString PlainTextContent;
++    SipUrl *contactUrl;
++    SipUrl *recRouteUrl;
++    SipUrl *fromUrl;
++    SipUrl *toUrl;
++    QString fromTag;
++    QString toTag;
++    QString fromEpid;
++    QString completeTo;
++    QString completeFrom;
++    QString viaIp;
++    int viaPort;
++    QString completeVia;
++    QString completeRR;
++    QString authMethod;
++    QString authRealm;
++    QString authNonce;
++};
++
++
++#endif
+
+Added: konference/src/sip/sipsdp.cpp
+===================================================================
+--- konference/src/sip/sipsdp.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipsdp.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,94 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#include &quot;sipsdp.h&quot;
++
++
++SipSdp::SipSdp(QString IP, int aPort, int vPort)
++{
++	audioPort = aPort;
++	videoPort = vPort;
++	MediaIp = IP;
++	thisSdp = &quot;&quot;;
++}
++
++SipSdp::~SipSdp()
++{
++	sdpCodec *c;
++	while ((c=audioCodec.first()) != 0)
++	{
++		audioCodec.remove();
++		delete c;
++	}
++	while ((c=videoCodec.first()) != 0)
++	{
++		videoCodec.remove();
++		delete c;
++	}
++}
++
++void SipSdp::addAudioCodec(int c, QString descr, QString fmt)
++{
++	audioCodec.append(new sdpCodec(c, descr, fmt));
++}
++
++void SipSdp::addVideoCodec(int c, QString descr, QString fmt)
++{
++	videoCodec.append(new sdpCodec(c, descr, fmt));
++}
++
++void SipSdp::encode()
++{
++	sdpCodec *c;
++
++	thisSdp = &quot;v=0\r\n&quot;
++	          &quot;o=Myth-UA 0 0 IN IP4 &quot; + MediaIp + &quot;\r\n&quot;
++	          &quot;s=SIP Call\r\n&quot;
++	          &quot;c=IN IP4 &quot; + MediaIp + &quot;\r\n&quot;
++	          &quot;t=0 0\r\n&quot;;
++
++	if ((audioPort != 0) &amp;&amp; (audioCodec.count()&gt;0))
++	{
++		thisSdp += QString(&quot;m=audio &quot;) + QString::number(audioPort) + &quot; RTP/AVP&quot;;
++		for (c=audioCodec.first(); c; c=audioCodec.next())
++			thisSdp += &quot; &quot; + QString::number(c-&gt;intValue());
++		thisSdp += &quot;\r\n&quot;;
++		for (c=audioCodec.first(); c; c=audioCodec.next())
++			thisSdp += QString(&quot;a=rtpmap:&quot;) + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;strValue() + &quot;\r\n&quot;;
++		for (c=audioCodec.first(); c; c=audioCodec.next())
++			if (c-&gt;fmtValue() != &quot;&quot;)
++				thisSdp += &quot;a=fmtp:&quot; + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;fmtValue() + &quot;\r\n&quot;;
++		thisSdp += &quot;a=ptime:20\r\n&quot;;
++	}
++
++	if ((videoPort != 0) &amp;&amp; (videoCodec.count()&gt;0))
++	{
++		thisSdp += QString(&quot;m=video &quot;) + QString::number(videoPort) + &quot; RTP/AVP&quot;;
++		for (c=videoCodec.first(); c; c=videoCodec.next())
++			thisSdp += &quot; &quot; + QString::number(c-&gt;intValue());
++		thisSdp += &quot;\r\n&quot;;
++		for (c=videoCodec.first(); c; c=videoCodec.next())
++			thisSdp += QString(&quot;a=rtpmap:&quot;) + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;strValue() + &quot;\r\n&quot;;
++		for (c=videoCodec.first(); c; c=videoCodec.next())
++			if (c-&gt;fmtValue() != &quot;&quot;)
++				thisSdp += &quot;a=fmtp:&quot; + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;fmtValue() + &quot;\r\n&quot;;
++	}
++
++}
++
+
+Added: konference/src/sip/sipsdp.h
+===================================================================
+--- konference/src/sip/sipsdp.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipsdp.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,70 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPSDP_H
++#define SIPSDP_H
++
++#include &lt;qptrlist.h&gt;
++#include &lt;qstring.h&gt;
++
++class sdpCodec
++{
++public:
++    sdpCodec(int v, QString s, QString f=&quot;&quot;) { c=v; name=s; format=f; }
++    ~sdpCodec() {};
++    int intValue() {return c;}
++    QString strValue() {return name;}
++    QString fmtValue() {return format;}
++    void setName(QString n) { name=n; }
++    void setFormat(QString f) { format=f; }
++private:
++    int c;
++    QString name;
++    QString format;
++};
++
++class SipSdp
++{
++public:
++    SipSdp(QString IP, int aPort, int vPort);
++    ~SipSdp();
++    void addAudioCodec(int c, QString descr, QString fmt=&quot;&quot;);
++    void addVideoCodec(int c, QString descr, QString fmt=&quot;&quot;);
++    void encode();
++    const QString string() { return thisSdp; }
++    int length()     { return thisSdp.length(); }
++    QPtrList&lt;sdpCodec&gt; *getAudioCodecList() { return &audioCodec; }
++    QPtrList&lt;sdpCodec&gt; *getVideoCodecList() { return &videoCodec; }
++    QString getMediaIP() { return MediaIp; }
++    void setMediaIp(QString ip) { MediaIp = ip; }
++    void setAudioPort(int p) { audioPort=p; }
++    void setVideoPort(int p) { videoPort=p; }
++    int getAudioPort() { return audioPort; }
++    int getVideoPort() { return videoPort; }
++
++private:
++    QString thisSdp;
++    QPtrList&lt;sdpCodec&gt; audioCodec;
++    QPtrList&lt;sdpCodec&gt; videoCodec;
++    int audioPort, videoPort;
++    QString MediaIp;
++};
++
++
++#endif
+
+Deleted: konference/src/sip/sipstack.cpp
+===================================================================
+--- konference/src/sip/sipstack.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipstack.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -1,966 +0,0 @@
+-/*
+-	sipstack.cpp
+- 
+-	(c) 2004 Paul Volkaerts
+- 
+-  Procedures and classes for building and parsing SIP messages.
+-	
+-*/
+-
+-
+-#include &lt;qapplication.h&gt;
+-#include &lt;qdatetime.h&gt;
+-#include &lt;qhostaddress.h&gt;
+-#include &lt;qdom.h&gt;
+-
+-#include &lt;stdlib.h&gt;
+-#include &lt;stdio.h&gt;
+-#include &lt;iostream&gt;
+-#include &lt;sys/types.h&gt;
+-#include &lt;sys/stat.h&gt;
+-#ifndef WIN32
+-#include &lt;unistd.h&gt;
+-#include &lt;sys/ioctl.h&gt;
+-#include &lt;netdb.h&gt;
+-#endif
+-
+-#ifdef WIN32
+-#include &lt;winsock2.h&gt;
+-#endif
+-
+-using namespace std;
+-
+-#ifndef WIN32
+-#include &quot;config.h&quot;
+-#endif
+-#include &quot;sipstack.h&quot;
+-#include &quot;md5digest.h&quot;
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipMsg
+-//////////////////////////////////////////////////////////////////////////////
+-
+-
+-SipMsg::SipMsg(QString Method)
+-{
+-	thisMethod = Method;
+-	Msg = &quot;&quot;;
+-	statusCode = 0;
+-	statusText = &quot;&quot;;
+-	cseqValue = 0;
+-	cseqMethod = &quot;&quot;;
+-	Expires = -1;
+-	msgContainsSDP = false;
+-	msgContainsXPIDF = false;
+-	msgContainsPlainText = false;
+-	PlainTextContent = &quot;&quot;;
+-	callId = 0;
+-	sdp = 0;
+-	xpidf = 0;
+-	contactUrl = 0;
+-	recRouteUrl = 0;
+-	fromUrl = 0;
+-	toUrl = 0;
+-	completeVia = &quot;&quot;;
+-	completeRR = &quot;&quot;;
+-	completeTo = &quot;&quot;;
+-	completeFrom = &quot;&quot;;
+-	viaIp = &quot;&quot;;
+-	viaPort = 0;
+-}
+-
+-SipMsg::SipMsg()
+-{
+-	thisMethod = &quot;&quot;;
+-	Msg = &quot;&quot;;
+-	statusCode = 0;
+-	statusText = &quot;&quot;;
+-	cseqValue = 0;
+-	cseqMethod = &quot;&quot;;
+-	Expires = -1;
+-	msgContainsSDP = false;
+-	msgContainsXPIDF = false;
+-	msgContainsPlainText = false;
+-	PlainTextContent = &quot;&quot;;
+-	callId = 0;
+-	sdp = 0;
+-	xpidf = 0;
+-	contactUrl = 0;
+-	recRouteUrl = 0;
+-	fromUrl = 0;
+-	toUrl = 0;
+-	completeVia = &quot;&quot;;
+-	completeRR = &quot;&quot;;
+-	completeTo = &quot;&quot;;
+-	completeFrom = &quot;&quot;;
+-	viaIp = &quot;&quot;;
+-	viaPort = 0;
+-}
+-
+-SipMsg::~SipMsg()
+-{
+-	if (callId)
+-		delete callId;
+-	if (sdp)
+-		delete sdp;
+-	if (xpidf)
+-		delete xpidf;
+-	if (contactUrl)
+-		delete contactUrl;
+-	if (recRouteUrl)
+-		delete recRouteUrl;
+-	if (fromUrl)
+-		delete fromUrl;
+-	if (toUrl)
+-		delete toUrl;
+-}
+-
+-SipMsg &amp;SipMsg::operator= (SipMsg &amp;rhs)
+-{
+-	if (this == &amp;rhs)
+-		return *this;
+-
+-	Msg = rhs.Msg;
+-	thisMethod = rhs.thisMethod;
+-	statusCode = rhs.statusCode;
+-	statusText = rhs.statusText;
+-	if (callId != 0)
+-		callId = new SipCallId(*rhs.callId);
+-	cseqValue = rhs.cseqValue;
+-	cseqMethod = rhs.cseqMethod;
+-	msgContainsSDP = rhs.msgContainsSDP;
+-	msgContainsXPIDF = rhs.msgContainsXPIDF;
+-	msgContainsPlainText = rhs.msgContainsPlainText;
+-	PlainTextContent = rhs.PlainTextContent;
+-
+-
+-	// Note: Content not copied
+-	sdp = 0;
+-	xpidf = 0;
+-
+-	return *this;
+-}
+-
+-void SipMsg::addRequestLine(SipUrl &amp;Url)
+-{
+-	Msg = thisMethod + &quot; &quot; + Url.formatReqLineUrl() + &quot; SIP/2.0\r\n&quot;;
+-}
+-
+-void SipMsg::addStatusLine(int Code)
+-{
+-	Msg =  &quot;SIP/2.0 &quot; + QString::number(Code) + &quot; &quot; + StatusPhrase(Code) + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addVia(QString Hostname, int Port)
+-{
+-	Msg += &quot;Via: SIP/2.0/UDP &quot; + Hostname + &quot;:&quot; + QString::number(Port) + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addGenericLine(QString Line)
+-{
+-	Msg += Line;
+-}
+-
+-void SipMsg::addTo(SipUrl &amp;to, QString tag, QString epid)
+-{
+-	Msg += &quot;To: &quot; + to.string();
+-	if (tag.length() &gt; 0)
+-		Msg += &quot;;tag=&quot; + tag;
+-	if (epid.length() &gt; 0)
+-		Msg += &quot;;epid=&quot; + epid;
+-	Msg += &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addFrom(SipUrl &amp;from, QString tag, QString epid)
+-{
+-	Msg += &quot;From: &quot; + from.string();
+-	if (tag.length() &gt; 0)
+-		Msg += &quot;;tag=&quot; + tag;
+-	if (epid.length() &gt; 0)
+-		Msg += &quot;;epid=&quot; + epid;
+-	Msg += &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addCallId(SipCallId id)
+-{
+-	Msg += &quot;Call-ID: &quot; + id.string() + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addCSeq(int c)
+-{
+-	Msg += QString(&quot;CSeq: &quot;) + QString::number(c) + &quot; &quot; + thisMethod + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addContact(SipUrl contact, QString Methods)
+-{
+-	Msg += &quot;Contact: &quot; + contact.formatContactUrl();
+-	if (Methods.length()&gt;0)
+-		Msg += &quot;;methods=\&quot;&quot; + Methods + &quot;\&quot;&quot;;
+-	Msg += &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addUserAgent(QString ua)
+-{
+-	Msg += &quot;User-Agent: &quot; + ua + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addAllow()
+-{
+-	Msg += &quot;Allow: INVITE, ACK, CANCEL, BYE, INFO, NOTIFY\r\n&quot;;
+-}
+-
+-void SipMsg::addEvent(QString Event)
+-{
+-	Msg += &quot;Event: &quot; + Event + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addSubState(QString State, int Expires)
+-{
+-	Msg += &quot;Subscription-State: &quot; + State;
+-	if (Expires != -1)
+-		Msg += &quot;;expires=&quot; + QString::number(Expires);
+-	Msg += &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addAuthorization(QString authMethod, QString Username, QString Password, QString Realm, QString Nonce, QString Uri, bool Proxy)
+-{
+-	// Calculate the Digest key for the response
+-	HASHHEX HA1;
+-	HASHHEX HA2 = &quot;&quot;;
+-	HASHHEX Response;
+-	DigestCalcHA1(&quot;md5&quot;, Username, Realm, Password, Nonce, &quot;&quot;, HA1);
+-	DigestCalcResponse(HA1, Nonce, &quot;&quot;, &quot;&quot;, &quot;&quot;, thisMethod, Uri, &quot;&quot;, HA2, Response);
+-
+-	if (Proxy)
+-		Msg += &quot;Proxy-Authorization: &quot; + authMethod;
+-	else
+-		Msg += &quot;Authorization: &quot; + authMethod;
+-	Msg += &quot; username=\&quot;&quot; + Username + &quot;\&quot;&quot;;
+-	Msg += &quot;, realm=\&quot;&quot; + Realm + &quot;\&quot;&quot;;
+-	Msg += &quot;, uri=\&quot;&quot; + Uri + &quot;\&quot;&quot;;
+-	Msg += &quot;, nonce=\&quot;&quot; + Nonce + &quot;\&quot;&quot;;
+-	Msg += QString(&quot;, response=\&quot;&quot;) + Response + &quot;\&quot;&quot;;
+-	Msg += &quot;, algorithm=md5\r\n&quot;;
+-}
+-
+-void SipMsg::addProxyAuthorization(QString authMethod, QString Username, QString Password, QString Realm, QString Nonce, QString Uri)
+-{
+-	addAuthorization(authMethod, Username, Password, Realm, Nonce, Uri, true);
+-}
+-
+-void SipMsg::addExpires(int e)
+-{
+-	Msg += &quot;Expires: &quot; + QString::number(e) + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::addNullContent()
+-{
+-	Msg += &quot;Content-Length: 0\r\n\r\n&quot;;
+-}
+-
+-void SipMsg::addContent(QString contentType, QString contentData)
+-{
+-	Msg += QString(&quot;Content-Type: &quot;) + contentType + &quot;\r\n&quot;
+-	       &quot;Content-Length: &quot; + QString::number(contentData.length()) + &quot;\r\n&quot;
+-	       &quot;\r\n&quot;
+-	       + contentData;
+-}
+-
+-void SipMsg::insertVia(QString Hostname, int Port)
+-{
+-	// Find the first Via statement so we can insert ourself
+-	QStringList::Iterator it;
+-	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
+-	{
+-		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
+-			break;
+-	}
+-
+-	// Insert new Via
+-	QString Via = &quot;Via: SIP/2.0/UDP &quot; + Hostname + &quot;:&quot; + QString::number(Port);
+-	if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
+-		attList.insert(it, Via);
+-	else
+-		attList.insert(attList.at(1), Via);
+-
+-	// And recreate the completed msg
+-	Msg = attList.join(&quot;\r\n&quot;);
+-}
+-
+-void SipMsg::removeVia()
+-{
+-	// Find the first Via statement
+-	QStringList::Iterator it;
+-	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
+-	{
+-		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
+-			break;
+-	}
+-
+-	// Remove the first Via. It may be on a line on its own (remove line) or may be part of a comma-separated list
+-	if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
+-	{
+-		int commaPosn;
+-		if ((commaPosn = (*it).find(',')) != -1)
+-			(*it).remove(5, commaPosn-4);
+-		else
+-			attList.remove(it); // Should we check this is us first?
+-	}
+-
+-	// And recreate the completed msg
+-	Msg = attList.join(&quot;\r\n&quot;);
+-
+-	// Now need to re-decode the Via to get the top message
+-	viaIp = &quot;&quot;;
+-	viaPort = 0;
+-	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
+-	{
+-		if ((*it).find(&quot;Via:&quot;, 0, false) == 0)
+-		{
+-			decodeVia(*it);
+-			break;
+-		}
+-	}
+-}
+-
+-QString SipMsg::StatusPhrase(int Code)
+-{
+-	switch (Code)
+-	{
+-	case 100: return &quot;Trying&quot;;
+-	case 180: return &quot;Ringing&quot;;
+-	case 200: return &quot;OK&quot;;
+-	case 400: return &quot;Bad Request&quot;;
+-	case 404: return &quot;Not Found&quot;;
+-	case 406: return &quot;Not Acceptable&quot;;
+-	case 481: return &quot;Call Leg/Transaction Does Not Exist&quot;;
+-	case 486: return &quot;Busy Here&quot;;
+-	case 488: return &quot;Not Acceptable Here&quot;;
+-	}
+-	return &quot;Dont know&quot;;
+-}
+-
+-
+-void SipMsg::decode(QString sipString)
+-{
+-	Msg = sipString; // Save in case we want to forward
+-
+-	// Split the attribute lines into a string list for easier access
+-	attList = QStringList::split(&quot;\r\n&quot;, sipString, true);
+-
+-	// Decode main body of SIP message
+-	decodeRequestLine(attList[0]);
+-	QStringList::Iterator it;
+-	for (it=attList.begin(); (it != attList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
+-		decodeLine(*it);
+-
+-	// Deccode main body of SIP message
+-	if (msgContainsSDP)
+-		decodeSdp(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
+-	if (msgContainsXPIDF)
+-		decodeXpidf(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
+-	if (msgContainsPlainText)
+-		decodePlainText(sipString.section(&quot;\r\n\r\n&quot;, 1, 1));
+-}
+-
+-void SipMsg::decodeLine(QString line)
+-{
+-	if (line.find(&quot;Via:&quot;, 0, false) == 0)
+-		decodeVia(line);
+-	else if (line.find(&quot;To:&quot;, 0, false) == 0)
+-		decodeTo(line);
+-	else if (line.find(&quot;From:&quot;, 0, false) == 0)
+-		decodeFrom(line);
+-	else if (line.find(&quot;Contact:&quot;, 0, false) == 0)
+-		decodeContact(line);
+-	else if (line.find(&quot;Record-Route:&quot;, 0, false) == 0)
+-		decodeRecordRoute(line);
+-	else if (line.find(&quot;Call-ID:&quot;, 0, false) == 0)
+-		decodeCallid(line);
+-	else if (line.find(&quot;CSeq:&quot;, 0, false) == 0)
+-		decodeCseq(line);
+-	else if (line.find(&quot;Expires:&quot;, 0, false) == 0)
+-		decodeExpires(line);
+-	else if (line.find(&quot;Content-Type:&quot;, 0, false) == 0)
+-		decodeContentType(line);
+-	else if (line.find(&quot;WWW-Authenticate:&quot;, 0, false) == 0)
+-		decodeAuthenticate(line);
+-	else if (line.find(&quot;Proxy-Authenticate:&quot;, 0, false) == 0)
+-		decodeAuthenticate(line);
+-}
+-
+-void SipMsg::decodeRequestLine(QString line)
+-{
+-	QString Token = line.section(' ', 0, 0);
+-	if ((Token == &quot;INVITE&quot;) || (Token == &quot;ACK&quot;) || (Token == &quot;BYE&quot;) || (Token == &quot;CANCEL&quot;) || (Token == &quot;REGISTER&quot;) || (Token == &quot;SUBSCRIBE&quot;) || (Token == &quot;NOTIFY&quot;) || (Token == &quot;MESSAGE&quot;) || (Token == &quot;INFO&quot;))
+-		thisMethod = Token;
+-	else if (Token == &quot;SIP/2.0&quot;)
+-	{
+-		thisMethod = &quot;STATUS&quot;;
+-		statusCode = (line.section(' ', 1, 1)).toInt();
+-		statusText = line.section(' ', 2, -1);
+-	}
+-	else
+-		thisMethod = &quot;UNKNOWN-&quot; + Token;
+-}
+-
+-void SipMsg::decodeVia(QString via)
+-{
+-	if ((via.find(&quot;Via: SIP/2.0/UDP&quot;, 0, false) == 0) &amp;&amp; (viaIp.length() == 0))
+-	{
+-		QString str1 = via.mid(17);
+-		QString str2 = str1.section(';', 0, 0);
+-		QString str3 = str2.section(',', 0, 0); // We are only interested in the value of the first one, so ignore multiples per line
+-		viaIp = str3.section(':', 0, 0);
+-		QString viaPortStr = str3.section(':', 1, 1);
+-		viaPort = (viaPortStr.length() != 0) ? viaPortStr.toInt() : 5060;
+-	}
+-	completeVia += via + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::decodeAuthenticate(QString auth)
+-{
+-	authMethod = auth.section(' ', 1, 1);
+-	QString Params = auth.section(' ', 2);
+-	while (Params.length() &gt; 0)
+-	{
+-		QString thisParam = Params.section(',', 0, 0);
+-		Params.remove(0, thisParam.length()+1);
+-		QString temp = Params.stripWhiteSpace();
+-		Params = temp;
+-
+-		QString thisParamNoWs = thisParam.stripWhiteSpace();
+-		QString ParamName  = thisParamNoWs.section('=', 0, 0);
+-		QString ParamValue = thisParamNoWs.section('=', 1, 1);
+-		QString ParamValueNoQuotes = (ParamValue.startsWith(&quot;\&quot;&quot;)) ? ParamValue.section('\&quot;', 1, 1) : ParamValue;
+-
+-		if (ParamName == &quot;realm&quot;)
+-			authRealm = ParamValueNoQuotes;
+-		else if (ParamName == &quot;nonce&quot;)
+-			authNonce = ParamValueNoQuotes;
+-		else if (ParamName == &quot;qop&quot;)
+-		{
+-			if (ParamValueNoQuotes != &quot;auth&quot;)
+-				cout &lt;&lt; &quot;SIP: QOP value not set to AUTH in Challenge\n&quot;;
+-		}
+-		else
+-			cout &lt;&lt; &quot;SIP: Unknown parameter in -Authenticate; &quot; &lt;&lt; ParamName &lt;&lt; endl;
+-	}
+-}
+-
+-void SipMsg::decodeFrom(QString from)
+-{
+-	if (fromUrl != 0)
+-		delete fromUrl;
+-	fromUrl = decodeUrl(from.mid(6)); // Remove &quot;from: &quot; first
+-	QString temp1 = from.section(&quot;;tag=&quot;, 1, 1);
+-	QString temp2 = from.section(&quot;;epid=&quot;, 1, 1);
+-	fromTag = temp1.section(&quot;;&quot;, 0, 0);
+-	fromEpid = temp2.section(&quot;;&quot;, 0, 0);
+-	completeFrom = from + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::decodeTo(QString to)
+-{
+-	if (toUrl != 0)
+-		delete toUrl;
+-	toUrl = decodeUrl(to.mid(4)); // Remove &quot;to: &quot; first
+-	QString temp = to.section(&quot;;tag=&quot;, 1, 1);
+-	toTag = temp.section(&quot;;&quot;, 0, 0);
+-	completeTo = to + &quot;\r\n&quot;;
+-}
+-
+-void SipMsg::decodeContact(QString contact)
+-{
+-	if (contactUrl != 0)
+-		delete contactUrl;
+-	contactUrl = decodeUrl(contact.mid(9)); // Remove &quot;Contact: &quot; first
+-	QString temp = contact.section(&quot;;expires=&quot;, 1, 1);
+-	QString expiresStr = temp.section(&quot;;&quot;, 0, 0);
+-	if (expiresStr.length() &gt; 0)
+-		Expires = expiresStr.toInt();
+-}
+-
+-void SipMsg::decodeRecordRoute(QString rr)
+-{
+-	if (recRouteUrl != 0)
+-		delete recRouteUrl;
+-	recRouteUrl = decodeUrl(rr.mid(14)); // Remove &quot;Record-Route: &quot; first
+-	completeRR += rr + &quot;\r\n&quot;;
+-}
+-
+-SipUrl *SipMsg::decodeUrl(QString source)
+-{
+-	QString str1, str2, str3, str4, str5, str6, str7, str8, str9, str10;
+-	int Port = 0;
+-
+-	// Expect one of
+-	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;;tag=xxxxx
+-	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060;lr=on&gt;
+-	//      &quot;abc&quot;&lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
+-	//      abc &lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
+-	//      &lt;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060&gt;
+-	//      sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">1234 at 1.1.1.1</A>:5060
+-	str3 = str7 = str9 = &quot;&quot;; // Initialise the important ones
+-	str1 = source.section(';', 0, 0); // Ignore any parameters after ';', if one is present
+-	if (str1.contains('&lt;'))
+-	{
+-		str2 = str1.section('&lt;', 0, 0);
+-		str3 = (str2.startsWith(&quot;\&quot;&quot;)) ? str2.section('\&quot;', 1, 1) : str2.stripWhiteSpace(); // str3 is the Display Name
+-		str4 = str1.section('&lt;', 1, 1);
+-		str5 = str4.section('&gt;', 0, 0); // sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">user at host</A>:port
+-	}
+-	else
+-		str5 = str1;
+-
+-	if (str5.startsWith(&quot;sip:&quot;))
+-	{
+-		str6 = str5.mid(4);
+-		if (str6.contains('@'))
+-		{
+-			str7 = str6.section('@', 0, 0); // user
+-			str8 = str6.section('@', 1, 1); // host:port
+-		}
+-		else
+-		{
+-			str7 = &quot;&quot;;
+-			str8 = str6; // host:port
+-		}
+-		str9  = str8.section(':', 0, 0); // host
+-		str10 = str8.section(':', 1, 1); // port
+-		Port = (str10.length() &gt; 0) ? str10.toInt() : 5060;
+-	}
+-
+-	return new SipUrl(str3, str7, str9, Port);
+-}
+-
+-void SipMsg::decodeCseq(QString cseq)
+-{
+-	cseqValue = (cseq.section(' ', 1, 1)).toInt();
+-	cseqMethod = cseq.section(' ', 2, 2);
+-}
+-
+-void SipMsg::decodeExpires(QString Exp)
+-{
+-	Expires = (Exp.section(' ', 1, 1)).toInt();
+-}
+-
+-void SipMsg::decodeCallid(QString callid)
+-{
+-	if (callId == 0)
+-		callId = new SipCallId;
+-	callId-&gt;setValue(callid.section(' ', 1, 1));
+-}
+-
+-void SipMsg::decodeContentType(QString cType)
+-{
+-	QString content = cType.section(' ', 1, 1);
+-	if (content.startsWith(&quot;application/sdp&quot;))
+-		msgContainsSDP = true;
+-	if (content.startsWith(&quot;application/xpidf+xml&quot;))
+-		msgContainsXPIDF = true;
+-	if (content.startsWith(&quot;text/plain&quot;))
+-		msgContainsPlainText = true;
+-}
+-
+-
+-void SipMsg::decodeSdp(QString content)
+-{
+-	QStringList sdpList = QStringList::split(&quot;\r\n&quot;, content, true);
+-	QStringList::Iterator it;
+-	if (sdp != 0)
+-		delete sdp;
+-	sdp = new SipSdp(&quot;&quot;, 0, 0);
+-	QPtrList&lt;sdpCodec&gt; *codecList = 0; // Tracks the media block we are parsing
+-	for (it=sdpList.begin(); (it != sdpList.end()) &amp;&amp; (*it != &quot;&quot;); it++)
+-	{
+-		codecList = decodeSDPLine(*it, codecList);
+-	}
+-}
+-
+-void SipMsg::decodeXpidf(QString content)
+-{
+-	if (xpidf != 0)
+-		delete xpidf;
+-	xpidf = new SipXpidf();
+-
+-	QDomDocument xmlContent;
+-	xmlContent.setContent(content);
+-	QDomElement rootElm = xmlContent.documentElement();
+-	QDomNode n = rootElm.firstChild();
+-	while (!n.isNull())
+-	{
+-		QDomElement e = n.toElement();
+-		if (!e.isNull())
+-		{
+-			if (e.tagName() == &quot;address&quot;)
+-			{
+-				QString uri1, uri2, uri3;
+-				// Convert from &quot;sip:<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">abc at xyz</A>;blah&quot; to &quot;<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">abc at xyz</A>&quot;
+-				uri1 = e.attribute(&quot;uri&quot;);
+-				if (uri1.startsWith(&quot;sip:&quot;))
+-					uri2 = uri1.mid(4);
+-				else
+-					uri2 = uri1;
+-				uri3 = uri2.section(';',0,0);
+-
+-				xpidf-&gt;setUserHost(uri3.section('@',0,0), uri3.section('@',1,1));
+-			}
+-			else if (e.tagName() == &quot;status&quot;)
+-				xpidf-&gt;setStatus(e.attribute(&quot;status&quot;));
+-			else if (e.tagName() == &quot;msnsubstatus&quot;)
+-				xpidf-&gt;setSubStatus(e.attribute(&quot;substatus&quot;));
+-		}
+-		QDomNode nextNode = n.firstChild();
+-		if (nextNode.isNull())
+-			nextNode = n.nextSibling();
+-		if (nextNode.isNull())
+-			nextNode = n.parentNode().nextSibling();
+-		n = nextNode;
+-	}
+-}
+-
+-void SipMsg::decodePlainText(QString content)
+-{
+-	PlainTextContent = content;
+-}
+-
+-QPtrList&lt;sdpCodec&gt; *SipMsg::decodeSDPLine(QString sdpLine, QPtrList&lt;sdpCodec&gt; *codecList)
+-{
+-	if (sdpLine.startsWith(&quot;c=&quot;))
+-		decodeSDPConnection(sdpLine);
+-	else if (sdpLine.startsWith(&quot;m=&quot;))
+-		codecList = decodeSDPMedia(sdpLine);
+-	else if (sdpLine.startsWith(&quot;a=&quot;))
+-		decodeSDPMediaAttribute(sdpLine, codecList);
+-	return codecList;
+-}
+-
+-void SipMsg::decodeSDPConnection(QString c)
+-{
+-	if (sdp)
+-	{
+-		sdp-&gt;setMediaIp(c.section(' ', 2, 2));
+-	}
+-}
+-
+-QPtrList&lt;sdpCodec&gt; *SipMsg::decodeSDPMedia(QString m)
+-{
+-	if (sdp)
+-	{
+-		int c=0;
+-		QString s;
+-		if (m.startsWith(&quot;m=audio&quot;))
+-		{
+-			sdp-&gt;setAudioPort((m.section(' ', 1, 1)).toInt());
+-			while ((s = m.section(' ', c+3, c+3)) != 0)
+-			{
+-				sdp-&gt;addAudioCodec(s.toInt(), &quot;&quot;);
+-				c++;
+-			}
+-			return (sdp-&gt;getAudioCodecList());
+-		}
+-		else if (m.startsWith(&quot;m=video&quot;))
+-		{
+-			sdp-&gt;setVideoPort((m.section(' ', 1, 1)).toInt());
+-			while ((s = m.section(' ', c+3, c+3)) != 0)
+-			{
+-				sdp-&gt;addVideoCodec(s.toInt(), &quot;&quot;, &quot;&quot;);
+-				c++;
+-			}
+-			return (sdp-&gt;getVideoCodecList());
+-		}
+-	}
+-	return 0;
+-}
+-
+-void SipMsg::decodeSDPMediaAttribute(QString a, QPtrList&lt;sdpCodec&gt; *codecList)
+-{
+-	if ((codecList != 0) &amp;&amp; ((a.startsWith(&quot;a=rtpmap:&quot;)) || (a.startsWith(&quot;a=fmtp:&quot;))))
+-	{
+-		QString attrib = a.section(':', 1, 1);
+-		int payload = (attrib.section(' ', 0, 0)).toInt();
+-
+-		sdpCodec *c;
+-		for (c=codecList-&gt;first(); c; c=codecList-&gt;next())
+-		{
+-			if (c-&gt;intValue() == payload)
+-			{
+-				if (a.startsWith(&quot;a=rtpmap:&quot;))
+-					c-&gt;setName(attrib.section(' ', 1, 1));
+-				else
+-					c-&gt;setFormat(attrib.section(' ', 1, 1));
+-			}
+-		}
+-	}
+-}
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipUrl
+-//////////////////////////////////////////////////////////////////////////////
+-
+-SipUrl::SipUrl(QString url, QString DisplayName)
+-{
+-	thisDisplayName = DisplayName;
+-	QString temp = url;
+-	if (url.startsWith(&quot;sip:&quot;))
+-		url = temp.mid(4);
+-	QString PortStr = url.section(':', 1, 1);
+-	thisPort = PortStr.length() &gt; 0 ? PortStr.toInt() : 5060;
+-	QString temp1 = url.section(':', 0, 0);
+-	thisUser = temp1.section('@', 0, 0);
+-	thisHostname = temp1.section('@', 1, 1);
+-	HostnameToIpAddr();
+-	encode();
+-}
+-
+-SipUrl::SipUrl(QString dispName, QString User, QString Hostname, int Port)
+-{
+-	thisDisplayName = dispName;
+-	thisUser = User;
+-	thisHostname = Hostname;
+-	thisPort = Port;
+-
+-	if (Hostname.contains(':'))
+-	{
+-		thisHostname = Hostname.section(':', 0, 0);
+-		thisPort = atoi(Hostname.section(':', 1, 1));
+-	}
+-
+-	HostnameToIpAddr();
+-	encode();
+-}
+-
+-SipUrl::SipUrl(SipUrl *orig)
+-{
+-	thisDisplayName = orig-&gt;thisDisplayName;
+-	thisUser = orig-&gt;thisUser;
+-	thisHostname = orig-&gt;thisHostname;
+-	thisPort = orig-&gt;thisPort;
+-	thisUrl = orig-&gt;thisUrl;
+-	thisHostIp = orig-&gt;thisHostIp;
+-}
+-
+-void SipUrl::HostnameToIpAddr()
+-{
+-	if (thisHostname.length() &gt; 0)
+-	{
+-		QHostAddress ha;
+-		ha.setAddress(thisHostname); // See if it is already an IP address
+-		if (ha.toString() != thisHostname)
+-		{
+-			// Need a DNS lookup on the URL
+-			struct hostent *h;
+-			h = gethostbyname((const char *)thisHostname);
+-			if (h != 0)
+-			{
+-				ha.setAddress(ntohl(*(long *)h-&gt;h_addr));
+-				thisHostIp = ha.toString();
+-			}
+-			else
+-				thisHostIp = &quot;&quot;;
+-		}
+-		else
+-			thisHostIp = thisHostname;
+-	}
+-	else
+-		thisHostIp = &quot;&quot;;
+-}
+-
+-void SipUrl::encode()
+-{
+-	QString PortStr = &quot;&quot;;
+-	thisUrl = &quot;&quot;;
+-	if (thisPort != 5060) // Note; some proxies demand the port to be present even if it is 5060
+-		PortStr = QString(&quot;:&quot;) + QString::number(thisPort);
+-	if (thisDisplayName.length() &gt; 0)
+-		thisUrl = &quot;\&quot;&quot; + thisDisplayName + &quot;\&quot; &quot;;
+-	thisUrl += &quot;&lt;sip:&quot;;
+-	if (thisUser.length() &gt; 0)
+-		thisUrl += thisUser + &quot;@&quot;;
+-	thisUrl += thisHostname + PortStr + &quot;&gt;&quot;;
+-}
+-
+-QString SipUrl::formatReqLineUrl()
+-{
+-	QString s(&quot;sip:&quot;);
+-	if (thisUser.length() &gt; 0)
+-		s += thisUser + &quot;@&quot;;
+-	s += thisHostname;
+-	if (thisPort != 5060)
+-		s += &quot;:&quot; + QString::number(thisPort);
+-	return s;
+-}
+-
+-QString SipUrl::formatContactUrl()
+-{
+-	QString s(&quot;&lt;sip:&quot;);
+-	s += thisHostIp;
+-	if (thisPort != 5060)
+-		s += &quot;:&quot; + QString::number(thisPort);
+-	s += &quot;&gt;&quot;;
+-	return s;
+-}
+-
+-SipUrl::~SipUrl()
+-{}
+-
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipCallId
+-//////////////////////////////////////////////////////////////////////////////
+-
+-int callIdEnumerator = 0x6243; // Random-ish number
+-
+-SipCallId::SipCallId(QString ip)
+-{
+-	Generate(ip);
+-}
+-
+-SipCallId::~SipCallId()
+-{}
+-
+-void SipCallId::Generate(QString ip)
+-{
+-	QString now = (QDateTime::currentDateTime()).toString(&quot;hhmmsszzz-ddMMyyyy&quot;);
+-	thisCallid = QString::number(callIdEnumerator++,16) + &quot;-&quot; + now + &quot;@&quot; + ip;
+-}
+-
+-bool SipCallId::operator== (SipCallId &amp;rhs)
+-{
+-	bool match = (thisCallid.compare(rhs.string()) == 0);
+-	return match;
+-}
+-
+-SipCallId &amp;SipCallId::operator= (SipCallId &amp;rhs)
+-{
+-	if (this == &amp;rhs)
+-		return *this;
+-
+-	thisCallid = rhs.thisCallid;
+-
+-	return *this;
+-}
+-
+-
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipSdp
+-//////////////////////////////////////////////////////////////////////////////
+-
+-SipSdp::SipSdp(QString IP, int aPort, int vPort)
+-{
+-	audioPort = aPort;
+-	videoPort = vPort;
+-	MediaIp = IP;
+-	thisSdp = &quot;&quot;;
+-}
+-
+-SipSdp::~SipSdp()
+-{
+-	sdpCodec *c;
+-	while ((c=audioCodec.first()) != 0)
+-	{
+-		audioCodec.remove();
+-		delete c;
+-	}
+-	while ((c=videoCodec.first()) != 0)
+-	{
+-		videoCodec.remove();
+-		delete c;
+-	}
+-}
+-
+-void SipSdp::addAudioCodec(int c, QString descr, QString fmt)
+-{
+-	audioCodec.append(new sdpCodec(c, descr, fmt));
+-}
+-
+-void SipSdp::addVideoCodec(int c, QString descr, QString fmt)
+-{
+-	videoCodec.append(new sdpCodec(c, descr, fmt));
+-}
+-
+-void SipSdp::encode()
+-{
+-	sdpCodec *c;
+-
+-	thisSdp = &quot;v=0\r\n&quot;
+-	          &quot;o=Myth-UA 0 0 IN IP4 &quot; + MediaIp + &quot;\r\n&quot;
+-	          &quot;s=SIP Call\r\n&quot;
+-	          &quot;c=IN IP4 &quot; + MediaIp + &quot;\r\n&quot;
+-	          &quot;t=0 0\r\n&quot;;
+-
+-	if ((audioPort != 0) &amp;&amp; (audioCodec.count()&gt;0))
+-	{
+-		thisSdp += QString(&quot;m=audio &quot;) + QString::number(audioPort) + &quot; RTP/AVP&quot;;
+-		for (c=audioCodec.first(); c; c=audioCodec.next())
+-			thisSdp += &quot; &quot; + QString::number(c-&gt;intValue());
+-		thisSdp += &quot;\r\n&quot;;
+-		for (c=audioCodec.first(); c; c=audioCodec.next())
+-			thisSdp += QString(&quot;a=rtpmap:&quot;) + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;strValue() + &quot;\r\n&quot;;
+-		for (c=audioCodec.first(); c; c=audioCodec.next())
+-			if (c-&gt;fmtValue() != &quot;&quot;)
+-				thisSdp += &quot;a=fmtp:&quot; + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;fmtValue() + &quot;\r\n&quot;;
+-		thisSdp += &quot;a=ptime:20\r\n&quot;;
+-	}
+-
+-	if ((videoPort != 0) &amp;&amp; (videoCodec.count()&gt;0))
+-	{
+-		thisSdp += QString(&quot;m=video &quot;) + QString::number(videoPort) + &quot; RTP/AVP&quot;;
+-		for (c=videoCodec.first(); c; c=videoCodec.next())
+-			thisSdp += &quot; &quot; + QString::number(c-&gt;intValue());
+-		thisSdp += &quot;\r\n&quot;;
+-		for (c=videoCodec.first(); c; c=videoCodec.next())
+-			thisSdp += QString(&quot;a=rtpmap:&quot;) + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;strValue() + &quot;\r\n&quot;;
+-		for (c=videoCodec.first(); c; c=videoCodec.next())
+-			if (c-&gt;fmtValue() != &quot;&quot;)
+-				thisSdp += &quot;a=fmtp:&quot; + QString::number(c-&gt;intValue()) + &quot; &quot; + c-&gt;fmtValue() + &quot;\r\n&quot;;
+-	}
+-
+-}
+-
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipXpidf
+-//////////////////////////////////////////////////////////////////////////////
+-
+-SipXpidf::SipXpidf()
+-{
+-	user = &quot;&quot;;
+-	host = &quot;&quot;;
+-	sipStatus = &quot;open&quot;;
+-	sipSubstatus = &quot;online&quot;;
+-}
+-
+-SipXpidf::SipXpidf(SipUrl &amp;Url)
+-{
+-	user = Url.getUser();
+-	host = Url.getHost();
+-	sipStatus = &quot;open&quot;;
+-	sipSubstatus = &quot;online&quot;;
+-}
+-
+-QString SipXpidf::encode()
+-{
+-	QString xpidf = &quot;&lt;?xml version=\&quot;1.0\&quot;?&gt;\n&quot;
+-	                &quot;&lt;!DOCTYPE presence\n&quot;
+-	                &quot;PUBLIC \&quot;-//IETF//DTD RFCxxxx XPIDF 1.0//EN\&quot; \&quot;xpidf.dtd\&quot;&gt;\n&quot;
+-	                &quot;&lt;presence&gt;\n&quot;
+-	                &quot;&lt;presentity uri=\&quot;sip:&quot; + user + &quot;@&quot; + host + &quot;;method=SUBSCRIBE\&quot; /&gt;\n&quot;
+-	                &quot;&lt;atom id=\&quot;1000\&quot;&gt;\n&quot;
+-	                &quot;&lt;address uri=\&quot;sip:&quot; + user + &quot;@&quot; + host + &quot;;user=ip\&quot; priority=\&quot;0.800000\&quot;&gt;\n&quot;
+-	                &quot;&lt;status status=\&quot;&quot; + sipStatus + &quot;\&quot; /&gt;\n&quot;
+-	                &quot;&lt;msnsubstatus substatus=\&quot;&quot; + sipSubstatus + &quot;\&quot; /&gt;\n&quot;
+-	                &quot;&lt;/address&gt;\n&quot;
+-	                &quot;&lt;/atom&gt;\n&quot;
+-	                &quot;&lt;/presence&gt;&quot;;
+-	return xpidf;
+-}
+-
+-
+-
+
+Deleted: konference/src/sip/sipstack.h
+===================================================================
+--- konference/src/sip/sipstack.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipstack.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -1,279 +0,0 @@
+-/*
+-	sipstack.h
+-
+-	(c) 2004 Paul Volkaerts
+-
+-  Procedures and classes for building and parsing SIP messages.
+-	
+-*/
+-
+-#ifndef SIPSTACK_H_
+-#define SIPSTACK_H_
+-
+-// Forward declarations
+-class SipSdp;
+-class SipXpidf;
+-class SipUrl;
+-class SipCallId;
+-class sdpCodec;
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipMsg
+-//////////////////////////////////////////////////////////////////////////////
+-
+-
+-class SipMsg
+-{
+-public:
+-    SipMsg(QString Method);
+-    SipMsg();
+-    ~SipMsg();
+-    void addRequestLine(SipUrl &amp;Url);
+-    void addStatusLine(int Code);
+-    void addVia(QString Hostname, int Port);
+-    void addTo(SipUrl &amp;to, QString tag=&quot;&quot;, QString epid=&quot;&quot;);
+-    void addFrom(SipUrl &amp;from, QString tag=&quot;&quot;, QString epid=&quot;&quot;);
+-    void addViaCopy(QString Via)    { addGenericLine(Via); }
+-    void addToCopy(QString To)      { addGenericLine(To); }
+-    void addFromCopy(QString From)  { addGenericLine(From); }
+-    void addRRCopy(QString RR)      { addGenericLine(RR); }
+-    void addCallId(SipCallId id);
+-    void addCSeq(int c);
+-    void addContact(SipUrl contact, QString Methods=&quot;&quot;);
+-    void addUserAgent(QString ua=&quot;MythPhone&quot;);     
+-    void addAllow();
+-    void addEvent(QString Event);
+-    void addSubState(QString State, int Expires);
+-    void addAuthorization(QString authMethod, QString Username, QString Password, QString realm, QString nonce, QString uri, bool Proxy=false);
+-    void addProxyAuthorization(QString authMethod, QString Username, QString Password, QString realm, QString nonce, QString uri);
+-    void addExpires(int e);
+-    void addNullContent();
+-    void addContent(QString contentType, QString contentData);
+-    void insertVia(QString Hostname, int Port);
+-    void removeVia();
+-    QString StatusPhrase(int Code);
+-    void decode(QString sipString);
+-    QString string() { return Msg; }
+-    QString getMethod() { return thisMethod; }
+-    int getCSeqValue() { return cseqValue; }
+-    QString getCSeqMethod() { return cseqMethod; }
+-    int getExpires() { return Expires; }
+-    int getStatusCode() { return statusCode; }
+-    QString getReasonPhrase() { return statusText; }
+-    SipCallId &amp;getCallId() { return *callId; }
+-    SipMsg &amp;operator= (SipMsg &amp;rhs);
+-    SipSdp *getSdp()         { return sdp; }
+-    SipXpidf *getXpidf()     { return xpidf; }
+-    QString getPlainText()   { return PlainTextContent; }
+-    SipUrl *getContactUrl()  { return contactUrl; }
+-    SipUrl *getRecRouteUrl() { return recRouteUrl; }
+-    SipUrl *getFromUrl()     { return fromUrl; }
+-    SipUrl *getToUrl()       { return toUrl; }
+-    QString getFromTag()     { return fromTag; }
+-    QString getFromEpid()    { return fromEpid; }
+-    QString getToTag()       { return toTag; }
+-    QString getCompleteTo()  { return completeTo; }
+-    QString getCompleteFrom(){ return completeFrom; }
+-    QString getCompleteVia() { return completeVia; }
+-    QString getCompleteRR()  { return completeRR; }
+-    QString getViaIp()       { return viaIp; }
+-    int     getViaPort()     { return viaPort; }
+-    QString getAuthMethod()  { return authMethod; }
+-    QString getAuthRealm()   { return authRealm; }
+-    QString getAuthNonce()   { return authNonce; } 
+-    void    addGenericLine(QString Line);
+-
+-
+-private:
+-    void decodeLine(QString line);
+-    void decodeRequestLine(QString line);
+-    void decodeVia(QString via);
+-    void decodeFrom(QString from);
+-    void decodeTo(QString to);
+-    void decodeContact(QString contact);
+-    void decodeRecordRoute(QString rr);
+-    void decodeCseq(QString cseq);
+-    void decodeExpires(QString Exp);
+-    void decodeCallid(QString callid);
+-    void decodeAuthenticate(QString auth);
+-    void decodeContentType(QString cType);
+-    void decodeSdp(QString content);
+-    void decodeXpidf(QString content);
+-    void decodePlainText(QString content);
+-    QPtrList&lt;sdpCodec&gt; *decodeSDPLine(QString sdpLine, QPtrList&lt;sdpCodec&gt; *codecList);
+-    void decodeSDPConnection(QString c);
+-    QPtrList&lt;sdpCodec&gt; *decodeSDPMedia(QString m);
+-    void decodeSDPMediaAttribute(QString a, QPtrList&lt;sdpCodec&gt; *codecList);
+-    SipUrl *decodeUrl(QString source);
+-
+-    QString Msg;
+-    QStringList attList;
+-    QString thisMethod;
+-    int statusCode;
+-    QString statusText;
+-    SipCallId *callId;
+-    int cseqValue;
+-    QString cseqMethod;
+-    int Expires;
+-    bool msgContainsSDP;
+-    bool msgContainsXPIDF;
+-    bool msgContainsPlainText;
+-    SipSdp *sdp;
+-    SipXpidf *xpidf;
+-    QString PlainTextContent;
+-    SipUrl *contactUrl;
+-    SipUrl *recRouteUrl;
+-    SipUrl *fromUrl;
+-    SipUrl *toUrl;
+-    QString fromTag;
+-    QString toTag;
+-    QString fromEpid;
+-    QString completeTo;
+-    QString completeFrom;
+-    QString viaIp;
+-    int viaPort;
+-    QString completeVia;
+-    QString completeRR;
+-    QString authMethod;
+-    QString authRealm;
+-    QString authNonce;
+-};
+-
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipUrl
+-//////////////////////////////////////////////////////////////////////////////
+-
+-class SipUrl
+-{
+-public:
+-    SipUrl(QString url, QString DisplayName);
+-    SipUrl(QString dispName, QString User, QString Hostname, int Port);
+-    SipUrl(SipUrl *orig);
+-    ~SipUrl();
+-    bool operator==(SipUrl &amp;rhs) { return (rhs.thisUser == thisUser); }
+-    const QString string() { return thisUrl; }
+-    QString getDisplay() { return thisDisplayName; }
+-    QString getUser() { return thisUser; }
+-    QString getHost() { return thisHostname; }
+-    QString getHostIp() { return thisHostIp; }
+-    QString formatReqLineUrl();
+-    QString formatContactUrl();
+-    int getPort() { return thisPort; }
+-    void setHostIp(QString ip) { thisHostIp = ip; }
+-    void setPort(int p) { thisPort = p; }
+-
+-private:
+-    void encode();
+-    void HostnameToIpAddr();
+-
+-    QString thisDisplayName;
+-    QString thisUser;
+-    QString thisHostname;
+-    QString thisHostIp;
+-    int thisPort;
+-    QString thisUrl;
+-};
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipCallId
+-//////////////////////////////////////////////////////////////////////////////
+-
+-class SipCallId
+-{
+-public:
+-    SipCallId(QString ip);
+-    SipCallId() { thisCallid = &quot;&quot;;}
+-    SipCallId(SipCallId &amp;id) { thisCallid = id.string();}
+-    ~SipCallId();
+-    void Generate(QString ip);
+-    void setValue(QString v) { thisCallid = v; }
+-    const QString string() { return thisCallid; }
+-    bool operator== (SipCallId &amp;rhs);
+-    SipCallId &amp;operator= (SipCallId &amp;rhs);
+-
+-private:
+-    QString thisCallid;
+-};
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipSdp
+-//////////////////////////////////////////////////////////////////////////////
+-
+-class sdpCodec
+-{
+-public:
+-    sdpCodec(int v, QString s, QString f=&quot;&quot;) { c=v; name=s; format=f; }
+-    ~sdpCodec() {};
+-    int intValue() {return c;}
+-    QString strValue() {return name;}
+-    QString fmtValue() {return format;}
+-    void setName(QString n) { name=n; }
+-    void setFormat(QString f) { format=f; }
+-private:
+-    int c;
+-    QString name;
+-    QString format;
+-};
+-
+-class SipSdp
+-{
+-public:
+-    SipSdp(QString IP, int aPort, int vPort);
+-    ~SipSdp();
+-    void addAudioCodec(int c, QString descr, QString fmt=&quot;&quot;);
+-    void addVideoCodec(int c, QString descr, QString fmt=&quot;&quot;);
+-    void encode();
+-    const QString string() { return thisSdp; }
+-    int length()     { return thisSdp.length(); }
+-    QPtrList&lt;sdpCodec&gt; *getAudioCodecList() { return &audioCodec; }
+-    QPtrList&lt;sdpCodec&gt; *getVideoCodecList() { return &videoCodec; }
+-    QString getMediaIP() { return MediaIp; }
+-    void setMediaIp(QString ip) { MediaIp = ip; }
+-    void setAudioPort(int p) { audioPort=p; }
+-    void setVideoPort(int p) { videoPort=p; }
+-    int getAudioPort() { return audioPort; }
+-    int getVideoPort() { return videoPort; }
+-
+-private:
+-    QString thisSdp;
+-    QPtrList&lt;sdpCodec&gt; audioCodec;
+-    QPtrList&lt;sdpCodec&gt; videoCodec;
+-    int audioPort, videoPort;
+-    QString MediaIp;
+-};
+-
+-
+-//////////////////////////////////////////////////////////////////////////////
+-//                                    SipXpidf
+-//////////////////////////////////////////////////////////////////////////////
+-
+-class SipXpidf
+-{
+-public:
+-    SipXpidf(SipUrl &amp;Url);
+-    SipXpidf();
+-    ~SipXpidf() {};
+-    void setUserHost(QString u, QString h) { user = u; host = h; };
+-    void setStatus(QString status, QString substatus=&quot;&quot;) { sipStatus = status; sipSubstatus = substatus; };
+-    void setSubStatus(QString substatus) { sipSubstatus = substatus; };
+-    QString encode();
+-    QString getUser()      { return user; };
+-    QString getHost()      { return host; };
+-    QString getStatus()    { return sipStatus; };
+-    QString getSubstatus() { return sipSubstatus; };
+-
+-private:
+-    QString user;
+-    QString host;
+-    QString sipStatus;
+-    QString sipSubstatus;
+-};
+-
+-
+-#endif
+-
+-
+
+Added: konference/src/sip/sipurl.cpp
+===================================================================
+--- konference/src/sip/sipurl.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipurl.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,133 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include &lt;qhostaddress.h&gt;
++#include &lt;unistd.h&gt;
++#include &lt;sys/ioctl.h&gt;
++#include &lt;netdb.h&gt;
++
++#include &quot;sipurl.h&quot;
++
++SipUrl::SipUrl(QString url, QString DisplayName)
++{
++	thisDisplayName = DisplayName;
++	QString temp = url;
++	if (url.startsWith(&quot;sip:&quot;))
++		url = temp.mid(4);
++	QString PortStr = url.section(':', 1, 1);
++	thisPort = PortStr.length() &gt; 0 ? PortStr.toInt() : 5060;
++	QString temp1 = url.section(':', 0, 0);
++	thisUser = temp1.section('@', 0, 0);
++	thisHostname = temp1.section('@', 1, 1);
++	HostnameToIpAddr();
++	encode();
++}
++
++SipUrl::SipUrl(QString dispName, QString User, QString Hostname, int Port)
++{
++	thisDisplayName = dispName;
++	thisUser = User;
++	thisHostname = Hostname;
++	thisPort = Port;
++
++	if (Hostname.contains(':'))
++	{
++		thisHostname = Hostname.section(':', 0, 0);
++		thisPort = atoi(Hostname.section(':', 1, 1));
++	}
++
++	HostnameToIpAddr();
++	encode();
++}
++
++SipUrl::SipUrl(SipUrl *orig)
++{
++	thisDisplayName = orig-&gt;thisDisplayName;
++	thisUser = orig-&gt;thisUser;
++	thisHostname = orig-&gt;thisHostname;
++	thisPort = orig-&gt;thisPort;
++	thisUrl = orig-&gt;thisUrl;
++	thisHostIp = orig-&gt;thisHostIp;
++}
++
++void SipUrl::HostnameToIpAddr()
++{
++	if (thisHostname.length() &gt; 0)
++	{
++		QHostAddress ha;
++		ha.setAddress(thisHostname); // See if it is already an IP address
++		if (ha.toString() != thisHostname)
++		{
++			// Need a DNS lookup on the URL
++			struct hostent *h;
++			h = gethostbyname((const char *)thisHostname);
++			if (h != 0)
++			{
++				ha.setAddress(ntohl(*(long *)h-&gt;h_addr));
++				thisHostIp = ha.toString();
++			}
++			else
++				thisHostIp = &quot;&quot;;
++		}
++		else
++			thisHostIp = thisHostname;
++	}
++	else
++		thisHostIp = &quot;&quot;;
++}
++
++void SipUrl::encode()
++{
++	QString PortStr = &quot;&quot;;
++	thisUrl = &quot;&quot;;
++	if (thisPort != 5060) // Note; some proxies demand the port to be present even if it is 5060
++		PortStr = QString(&quot;:&quot;) + QString::number(thisPort);
++	if (thisDisplayName.length() &gt; 0)
++		thisUrl = &quot;\&quot;&quot; + thisDisplayName + &quot;\&quot; &quot;;
++	thisUrl += &quot;&lt;sip:&quot;;
++	if (thisUser.length() &gt; 0)
++		thisUrl += thisUser + &quot;@&quot;;
++	thisUrl += thisHostname + PortStr + &quot;&gt;&quot;;
++}
++
++QString SipUrl::formatReqLineUrl()
++{
++	QString s(&quot;sip:&quot;);
++	if (thisUser.length() &gt; 0)
++		s += thisUser + &quot;@&quot;;
++	s += thisHostname;
++	if (thisPort != 5060)
++		s += &quot;:&quot; + QString::number(thisPort);
++	return s;
++}
++
++QString SipUrl::formatContactUrl()
++{
++	QString s(&quot;&lt;sip:&quot;);
++	s += thisHostIp;
++	if (thisPort != 5060)
++		s += &quot;:&quot; + QString::number(thisPort);
++	s += &quot;&gt;&quot;;
++	return s;
++}
++
++SipUrl::~SipUrl()
++{}
++
+
+Added: konference/src/sip/sipurl.h
+===================================================================
+--- konference/src/sip/sipurl.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipurl.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,60 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPURL_H
++#define SIPURL_H
++
++#include &lt;qstring.h&gt;
++
++/**
+<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">+ at author</A> Malte B&#246;hme
++*/
++class SipUrl
++{
++public:
++    SipUrl(QString url, QString DisplayName);
++    SipUrl(QString dispName, QString User, QString Hostname, int Port);
++    SipUrl(SipUrl *orig);
++    ~SipUrl();
++    bool operator==(SipUrl &amp;rhs) { return (rhs.thisUser == thisUser); }
++    const QString string() { return thisUrl; }
++    QString getDisplay() { return thisDisplayName; }
++    QString getUser() { return thisUser; }
++    QString getHost() { return thisHostname; }
++    QString getHostIp() { return thisHostIp; }
++    QString formatReqLineUrl();
++    QString formatContactUrl();
++    int getPort() { return thisPort; }
++    void setHostIp(QString ip) { thisHostIp = ip; }
++    void setPort(int p) { thisPort = p; }
++
++private:
++    void encode();
++    void HostnameToIpAddr();
++
++    QString thisDisplayName;
++    QString thisUser;
++    QString thisHostname;
++    QString thisHostIp;
++    int thisPort;
++    QString thisUrl;
++};
++
++
++#endif
+
+Added: konference/src/sip/sipxpidf.cpp
+===================================================================
+--- konference/src/sip/sipxpidf.cpp	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipxpidf.cpp	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,58 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++
++#include &quot;sipurl.h&quot;
++ 
++#include &quot;sipxpidf.h&quot;
++
++
++SipXpidf::SipXpidf()
++{
++	user = &quot;&quot;;
++	host = &quot;&quot;;
++	sipStatus = &quot;open&quot;;
++	sipSubstatus = &quot;online&quot;;
++}
++
++SipXpidf::SipXpidf(SipUrl &amp;Url)
++{
++	user = Url.getUser();
++	host = Url.getHost();
++	sipStatus = &quot;open&quot;;
++	sipSubstatus = &quot;online&quot;;
++}
++
++QString SipXpidf::encode()
++{
++	QString xpidf = &quot;&lt;?xml version=\&quot;1.0\&quot;?&gt;\n&quot;
++	                &quot;&lt;!DOCTYPE presence\n&quot;
++	                &quot;PUBLIC \&quot;-//IETF//DTD RFCxxxx XPIDF 1.0//EN\&quot; \&quot;xpidf.dtd\&quot;&gt;\n&quot;
++	                &quot;&lt;presence&gt;\n&quot;
++	                &quot;&lt;presentity uri=\&quot;sip:&quot; + user + &quot;@&quot; + host + &quot;;method=SUBSCRIBE\&quot; /&gt;\n&quot;
++	                &quot;&lt;atom id=\&quot;1000\&quot;&gt;\n&quot;
++	                &quot;&lt;address uri=\&quot;sip:&quot; + user + &quot;@&quot; + host + &quot;;user=ip\&quot; priority=\&quot;0.800000\&quot;&gt;\n&quot;
++	                &quot;&lt;status status=\&quot;&quot; + sipStatus + &quot;\&quot; /&gt;\n&quot;
++	                &quot;&lt;msnsubstatus substatus=\&quot;&quot; + sipSubstatus + &quot;\&quot; /&gt;\n&quot;
++	                &quot;&lt;/address&gt;\n&quot;
++	                &quot;&lt;/atom&gt;\n&quot;
++	                &quot;&lt;/presence&gt;&quot;;
++	return xpidf;
++}
++
+
+Added: konference/src/sip/sipxpidf.h
+===================================================================
+--- konference/src/sip/sipxpidf.h	2005-05-24 18:37:38 UTC (rev 65)
++++ konference/src/sip/sipxpidf.h	2005-06-02 15:54:01 UTC (rev 66)
+@@ -0,0 +1,53 @@
++/***************************************************************************
++ *   Copyright (C) 2005 by Malte B&#246;hme                                     *
++ *   <A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">malte.boehme at rwth-aachen.de</A>                                           *
++ *                                                                         *
++ *   This program is free software; you can redistribute it and/or modify  *
++ *   it under the terms of the GNU General Public License as published by  *
++ *   the Free Software Foundation; either version 2 of the License, or     *
++ *   (at your option) any later version.                                   *
++ *                                                                         *
++ *   This program is distributed in the hope that it will be useful,       *
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
++ *   GNU General Public License for more details.                          *
++ *                                                                         *
++ *   You should have received a copy of the GNU General Public License     *
++ *   along with this program; if not, write to the                         *
++ *   Free Software Foundation, Inc.,                                       *
++ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
++ ***************************************************************************/
++#ifndef SIPXPIDF_H
++#define SIPXPIDF_H
++
++#include &lt;qstring.h&gt;
++
++class SipUrl;
++
++/**
+<A HREF="https://lists.berlios.de/mailman/listinfo/konference-commits">+ at author</A> Malte B&#246;hme
++*/
++class SipXpidf
++{
++public:
++    SipXpidf(SipUrl &amp;Url);
++    SipXpidf();
++    ~SipXpidf() {};
++    void setUserHost(QString u, QString h) { user = u; host = h; };
++    void setStatus(QString status, QString substatus=&quot;&quot;) { sipStatus = status; sipSubstatus = substatus; };
++    void setSubStatus(QString substatus) { sipSubstatus = substatus; };
++    QString encode();
++    QString getUser()      { return user; };
++    QString getHost()      { return host; };
++    QString getStatus()    { return sipStatus; };
++    QString getSubstatus() { return sipSubstatus; };
++
++private:
++    QString user;
++    QString host;
++    QString sipStatus;
++    QString sipSubstatus;
++};
++
++
++#endif
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000000.html">[Konference-commits] r67 - konference/src/dialogs/wizard
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9">[ date ]</a>
+              <a href="thread.html#9">[ thread ]</a>
+              <a href="subject.html#9">[ subject ]</a>
+              <a href="author.html#9">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>

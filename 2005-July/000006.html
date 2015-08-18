@@ -1,0 +1,370 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r73 - konference/src/sip
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r73%20-%20konference/src/sip&In-Reply-To=%3C200507011918.j61JIcTv017547%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000005.html">
+   <LINK REL="Next"  HREF="000010.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r73 - konference/src/sip</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r73%20-%20konference/src/sip&In-Reply-To=%3C200507011918.j61JIcTv017547%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r73 - konference/src/sip">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul  1 21:18:38 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000005.html">[Konference-commits] r72 - konference/src
+</A></li>
+        <LI>Next message: <A HREF="000010.html">[Konference-commits] r74 - konference/src/sip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6">[ date ]</a>
+              <a href="thread.html#6">[ thread ]</a>
+              <a href="subject.html#6">[ subject ]</a>
+              <a href="author.html#6">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-07-01 21:18:35 +0200 (Fri, 01 Jul 2005)
+New Revision: 73
+
+Modified:
+   konference/src/sip/sipfsm.cpp
+   konference/src/sip/sipfsm.h
+   konference/src/sip/sipmsg.cpp
+   konference/src/sip/sipmsg.h
+Log:
+fixed segfault on empty/bad sip-packet
+
+
+Modified: konference/src/sip/sipfsm.cpp
+===================================================================
+--- konference/src/sip/sipfsm.cpp	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipfsm.cpp	2005-07-01 19:18:35 UTC (rev 73)
+@@ -502,9 +502,9 @@
+ 		{
+ 			// No application running to tell of the incoming call
+ 			// Either alert via on-screen popup or send to voicemail
+-//			SipNotify *notify = new SipNotify();
+-//			notify-&gt;Display(callerName, callerUrl);
+-//			delete notify;
++			//			SipNotify *notify = new SipNotify();
++			//			notify-&gt;Display(callerName, callerUrl);
++			//			delete notify;
+ 		}
+ 	}
+ }
+@@ -541,13 +541,13 @@
+ 	sipRegistrar = new SipRegistrar(this, &quot;maldn&quot;, localIp, localPort);
+ 
+ 	// if Proxy Registration is configured ...
+-	bool RegisterWithProxy = false;//TODO gContext-&gt;GetNumSetting(&quot;SipRegisterWithProxy&quot;,1);
++	bool RegisterWithProxy = true;//TODO gContext-&gt;GetNumSetting(&quot;SipRegisterWithProxy&quot;,1);
+ 	sipRegistration = 0;
+ 	if (RegisterWithProxy)
+ 	{
+-		QString ProxyDNS = &quot;fwd.pulver.com&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyName&quot;);
+-		QString ProxyUsername = &quot;&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyAuthName&quot;);
+-		QString ProxyPassword = &quot;&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyAuthPassword&quot;);
++		QString ProxyDNS = &quot;sipgate.de&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyName&quot;);
++		QString ProxyUsername = &quot;8925303&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyAuthName&quot;);
++		QString ProxyPassword = &quot;wonttellyou :-)&quot;;//TODO gContext-&gt;GetSetting(&quot;SipProxyAuthPassword&quot;);
+ 		if ((ProxyDNS.length() &gt; 0) &amp;&amp; (ProxyUsername.length() &gt; 0) &amp;&amp; (ProxyPassword.length() &gt; 0))
+ 		{
+ 			sipRegistration = new SipRegistration(this, natIp, localPort, ProxyUsername, ProxyPassword, ProxyDNS, 5060);
+@@ -845,6 +845,7 @@
+ 		{
+ 			switch (Event)
+ 			{
++			case SIP_UNKNOWN:     fsm = 0;                       break;//ignore event
+ 			case SIP_REGISTER:    fsm = sipRegistrar;            break;
+ 			case SIP_SUBSCRIBE:   fsm = CreateSubscriberFsm();   break;
+ 			case SIP_MESSAGE:     fsm = CreateIMFsm();           break;
+@@ -858,7 +859,7 @@
+ 			if ((fsm-&gt;FSM(Event, &amp;sipRcv)) == SIP_IDLE)
+ 				DestroyFsm(fsm);
+ 		}
+-		else
++		else if (Event != SIP_UNKNOWN)
+ 			cerr &lt;&lt; &quot;SIP: fsm should not be zero here\n&quot;;
+ 	}
+ }
+@@ -916,7 +917,7 @@
+ 	}
+ 	else
+ 		cerr &lt;&lt; &quot;SIP: Unknown method &quot; &lt;&lt; Method &lt;&lt; endl;
+-	return 0;
++	return SIP_UNKNOWN;
+ }
+ 
+ SipCall *SipFsm::MatchCall(int cr)
+@@ -928,17 +929,20 @@
+ 	return 0;
+ }
+ 
+-SipFsmBase *SipFsm::MatchCallId(SipCallId &amp;CallId)
++SipFsmBase *SipFsm::MatchCallId(SipCallId *CallId)
+ {
+ 	SipFsmBase *it;
+ 	SipFsmBase *match=0;
+-	for (it=FsmList.first(); it; it=FsmList.next())
++	if (CallId != 0)
+ 	{
+-		if (it-&gt;callId() == CallId.string())
++		for (it=FsmList.first(); it; it=FsmList.next())
+ 		{
+-			if (match != 0)
+-				cerr &lt;&lt; &quot;SIP: Oops; we have two FSMs with the same Call Id\n&quot;;
+-			match = it;
++			if (it-&gt;callId() == CallId-&gt;string())
++			{
++				if (match != 0)
++					cerr &lt;&lt; &quot;SIP: Oops; we have two FSMs with the same Call Id\n&quot;;
++				match = it;
++			}
+ 		}
+ 	}
+ 	return match;
+@@ -1010,7 +1014,7 @@
+ {
+ 	SipCallId sipCallId;
+ 	sipCallId.setValue(CallId);
+-	SipFsmBase *Fsm = MatchCallId(sipCallId);
++	SipFsmBase *Fsm = MatchCallId(&amp;sipCallId);
+ 	if ((Fsm) &amp;&amp; (Fsm-&gt;type() == &quot;IM&quot;))
+ 	{
+ 		if ((Fsm-&gt;FSM(SIP_USER_MESSAGE, 0, &amp;imMsg)) == SIP_IDLE)
+@@ -1130,7 +1134,7 @@
+ 		rxedFrom = sipMsg-&gt;getCompleteFrom();
+ 		RecRoute = sipMsg-&gt;getCompleteRR();
+ 		Via      = sipMsg-&gt;getCompleteVia();
+-		CallId   = sipMsg-&gt;getCallId();
++		CallId   = *(sipMsg-&gt;getCallId());
+ 		viaIp    = sipMsg-&gt;getViaIp();
+ 		viaPort  = sipMsg-&gt;getViaPort();
+ 		if (remoteUrl == 0)
+@@ -1173,7 +1177,7 @@
+ 		Status.addViaCopy(Via);
+ 	Status.addFromCopy(rxedFrom);
+ 	Status.addToCopy(rxedTo);
+-	Status.addCallId(CallId);
++	Status.addCallId(&amp;CallId);
+ 	Status.addCSeq(statusCseq);
+ 	if ((Option &amp; SIP_OPT_EXPIRES) &amp;&amp; (statusExpires &gt;= 0))
+ 		Status.addExpires(statusExpires);
+@@ -1330,7 +1334,7 @@
+ 	CodecList[0].Payload = 0;
+ 	CodecList[0].Encoding = &quot;PCMU&quot;;
+ 	int n=0;
+-	QString CodecListString = &quot;GSM;G.711u;G.711a&quot;;//TODO gContext-&gt;GetSetting(&quot;CodecPriorityList&quot;);
++	QString CodecListString = &quot;G.711u;G.711a;GSM&quot;;//TODO gContext-&gt;GetSetting(&quot;CodecPriorityList&quot;);
+ 	while ((CodecListString.length() &gt; 0) &amp;&amp; (n &lt; MAX_AUDIO_CODECS-1))
+ 	{
+ 		int sep = CodecListString.find(';');
+@@ -1648,7 +1652,7 @@
+ 	Invite.addVia(sipLocalIP, sipLocalPort);
+ 	Invite.addFrom(*MyUrl, &quot;ae1d8a43cf3f4d8a8f4f0e1004&quot;, &quot;3622b728e3&quot;);
+ 	Invite.addTo(*remoteUrl);
+-	Invite.addCallId(CallId);
++	Invite.addCallId(&amp;CallId);
+ 	Invite.addCSeq(++cseq);
+ 	Invite.addUserAgent();
+ 
+@@ -1710,7 +1714,7 @@
+ 	Ack.addVia(sipLocalIP, sipLocalPort);
+ 	Ack.addFrom(*MyUrl, &quot;ae1d8a43cf3f4d8a8f4f0e1004&quot;, &quot;3622b728e3&quot;);
+ 	Ack.addTo(*remoteUrl, remoteTag);
+-	Ack.addCallId(CallId);
++	Ack.addCallId(&amp;CallId);
+ 	Ack.addCSeq(cseq);
+ 	Ack.addUserAgent();
+ 	Ack.addNullContent();
+@@ -1735,7 +1739,7 @@
+ 	Cancel.addVia(sipLocalIP, sipLocalPort);
+ 	Cancel.addTo(*remoteUrl, remoteTag);
+ 	Cancel.addFrom(*MyUrl);
+-	Cancel.addCallId(CallId);
++	Cancel.addCallId(&amp;CallId);
+ 	Cancel.addCSeq(cseq);
+ 	Cancel.addUserAgent();
+ 
+@@ -1786,7 +1790,7 @@
+ 		Bye.addFrom(*MyUrl);
+ 		Bye.addTo(*remoteUrl, remoteTag);
+ 	}
+-	Bye.addCallId(CallId);
++	Bye.addCallId(&amp;CallId);
+ 	Bye.addCSeq(++cseq);
+ 	Bye.addUserAgent();
+ 
+@@ -2244,7 +2248,7 @@
+ 	Register.addVia(sipLocalIp, sipLocalPort);
+ 	Register.addFrom(*MyUrl);
+ 	Register.addTo(*MyUrl);
+-	Register.addCallId(CallId);
++	Register.addCallId(&amp;CallId);
+ 	Register.addCSeq(++cseq);
+ 
+ 	if (authMsg &amp;&amp; (authMsg-&gt;getAuthMethod() == &quot;Digest&quot;))
+@@ -2379,7 +2383,7 @@
+ 	Notify.addVia(sipLocalIp, sipLocalPort);
+ 	Notify.addFrom(*MyUrl);
+ 	Notify.addTo(*watcherUrl, remoteTag, remoteEpid);
+-	Notify.addCallId(CallId);
++	Notify.addCallId(&amp;CallId);
+ 	Notify.addCSeq(++cseq);
+ 	int expLeft = (parent-&gt;Timer())-&gt;msLeft(this, SIP_SUBSCRIBE_EXPIRE)/1000;
+ 	Notify.addExpires(expLeft);
+@@ -2616,7 +2620,7 @@
+ 	Subscribe.addVia(sipLocalIp, sipLocalPort);
+ 	Subscribe.addFrom(*MyUrl);
+ 	Subscribe.addTo(*watchedUrl);
+-	Subscribe.addCallId(CallId);
++	Subscribe.addCallId(&amp;CallId);
+ 	Subscribe.addCSeq(++cseq);
+ 	if (State == SIP_WATCH_STOPPING)
+ 		Subscribe.addExpires(0);
+@@ -2773,7 +2777,7 @@
+ 	Message.addVia(sipLocalIp, sipLocalPort);
+ 	Message.addFrom(*MyUrl);
+ 	Message.addTo(*imUrl, remoteTag, remoteEpid);
+-	Message.addCallId(CallId);
++	Message.addCallId(&amp;CallId);
+ 	Message.addCSeq(++txCseq);
+ 
+ 	if (authMsg)
+@@ -2827,7 +2831,7 @@
+ 	}
+ 	//    notifySocket-&gt;close();
+ }
+-
++ 
+ SipNotify::~SipNotify()
+ {
+ 	if (notifySocket)
+@@ -2835,9 +2839,9 @@
+ 		delete notifySocket;
+ 		notifySocket = 0;
+ 	}
+-
++ 
+ }
+-
++ 
+ void SipNotify::Display(QString name, QString number)
+ {
+ 	if (notifySocket)
+@@ -2857,13 +2861,13 @@
+ 		        &quot;    &lt;/textarea&gt;&quot;
+ 		        &quot;  &lt;/container&gt;&quot;
+ 		        &quot;&lt;/mythnotify&gt;&quot;;
+-
++ 
+ 		QHostAddress RemoteIP;
+ 		RemoteIP.setAddress(&quot;127.0.0.1&quot;);
+ 		notifySocket-&gt;writeBlock(text.ascii(), text.length(), RemoteIP, 6948);
+ 	}
+ }
+-
++ 
+ */
+ 
+ /**********************************************************************
+
+Modified: konference/src/sip/sipfsm.h
+===================================================================
+--- konference/src/sip/sipfsm.h	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipfsm.h	2005-07-01 19:18:35 UTC (rev 73)
+@@ -97,6 +97,7 @@
+ 
+ 
+ // Events
++#define SIP_UNKNOWN             0x0
+ #define SIP_OUTCALL             0x100
+ #define SIP_INVITE              0x200
+ #define SIP_INVITESTATUS_2xx    0x300
+@@ -562,7 +563,7 @@
+ 	void DestroyFsm(SipFsmBase *Fsm);
+ 	void CheckRxEvent();
+ 	SipCall *MatchCall(int cr);
+-	SipFsmBase *MatchCallId(SipCallId &amp;CallId);
++	SipFsmBase *MatchCallId(SipCallId *CallId);
+ 	SipCall *CreateCallFsm();
+ 	SipSubscriber *CreateSubscriberFsm();
+ 	SipWatcher *CreateWatcherFsm(QString Url);
+
+Modified: konference/src/sip/sipmsg.cpp
+===================================================================
+--- konference/src/sip/sipmsg.cpp	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipmsg.cpp	2005-07-01 19:18:35 UTC (rev 73)
+@@ -172,9 +172,9 @@
+ 	Msg += &quot;\r\n&quot;;
+ }
+ 
+-void SipMsg::addCallId(SipCallId id)
++void SipMsg::addCallId(SipCallId *id)
+ {
+-	Msg += &quot;Call-ID: &quot; + id.string() + &quot;\r\n&quot;;
++	Msg += &quot;Call-ID: &quot; + id-&gt;string() + &quot;\r\n&quot;;
+ }
+ 
+ void SipMsg::addCSeq(int c)
+
+Modified: konference/src/sip/sipmsg.h
+===================================================================
+--- konference/src/sip/sipmsg.h	2005-07-01 19:17:45 UTC (rev 72)
++++ konference/src/sip/sipmsg.h	2005-07-01 19:18:35 UTC (rev 73)
+@@ -49,7 +49,7 @@
+     void addToCopy(QString To)      { addGenericLine(To); }
+     void addFromCopy(QString From)  { addGenericLine(From); }
+     void addRRCopy(QString RR)      { addGenericLine(RR); }
+-    void addCallId(SipCallId id);
++    void addCallId(SipCallId *id);
+     void addCSeq(int c);
+     void addContact(SipUrl contact, QString Methods=&quot;&quot;);
+     void addUserAgent(QString ua=&quot;MythPhone&quot;);     
+@@ -72,7 +72,7 @@
+     int getExpires() { return Expires; }
+     int getStatusCode() { return statusCode; }
+     QString getReasonPhrase() { return statusText; }
+-    SipCallId &amp;getCallId() { return *callId; }
++    SipCallId *getCallId() { return callId; }
+     SipMsg &amp;operator= (SipMsg &amp;rhs);
+     SipSdp *getSdp()         { return sdp; }
+     SipXpidf *getXpidf()     { return xpidf; }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000005.html">[Konference-commits] r72 - konference/src
+</A></li>
+	<LI>Next message: <A HREF="000010.html">[Konference-commits] r74 - konference/src/sip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6">[ date ]</a>
+              <a href="thread.html#6">[ thread ]</a>
+              <a href="subject.html#6">[ subject ]</a>
+              <a href="author.html#6">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>

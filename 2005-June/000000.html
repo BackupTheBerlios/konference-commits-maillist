@@ -1,0 +1,371 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r67 - konference/src/dialogs/wizard
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r67%20-%20konference/src/dialogs/wizard&In-Reply-To=%3C200506051249.j55Cn848020400%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000009.html">
+   <LINK REL="Next"  HREF="000001.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r67 - konference/src/dialogs/wizard</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r67%20-%20konference/src/dialogs/wizard&In-Reply-To=%3C200506051249.j55Cn848020400%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r67 - konference/src/dialogs/wizard">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Sun Jun  5 14:49:08 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000009.html">[Konference-commits] r66 - konference/src/sip
+</A></li>
+        <LI>Next message: <A HREF="000001.html">[Konference-commits] r68 - konference/src/rtp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-06-05 14:49:08 +0200 (Sun, 05 Jun 2005)
+New Revision: 67
+
+Modified:
+   konference/src/dialogs/wizard/page3layout.ui
+   konference/src/dialogs/wizard/page4layout.ui
+   konference/src/dialogs/wizard/wizard.cpp
+   konference/src/dialogs/wizard/wizard.h
+Log:
+some more polishing done
+
+
+Modified: konference/src/dialogs/wizard/page3layout.ui
+===================================================================
+--- konference/src/dialogs/wizard/page3layout.ui	2005-06-02 15:54:01 UTC (rev 66)
++++ konference/src/dialogs/wizard/page3layout.ui	2005-06-05 12:49:08 UTC (rev 67)
+@@ -8,8 +8,8 @@
+         &lt;rect&gt;
+             &lt;x&gt;0&lt;/x&gt;
+             &lt;y&gt;0&lt;/y&gt;
+-            &lt;width&gt;257&lt;/width&gt;
+-            &lt;height&gt;299&lt;/height&gt;
++            &lt;width&gt;392&lt;/width&gt;
++            &lt;height&gt;439&lt;/height&gt;
+         &lt;/rect&gt;
+     &lt;/property&gt;
+     &lt;property name=&quot;caption&quot;&gt;
+@@ -30,8 +30,74 @@
+                 &lt;property name=&quot;name&quot;&gt;
+                     &lt;cstring&gt;unnamed&lt;/cstring&gt;
+                 &lt;/property&gt;
+-                &lt;widget class=&quot;QButtonGroup&quot; row=&quot;1&quot; column=&quot;0&quot;&gt;
++                &lt;widget class=&quot;QLabel&quot; row=&quot;1&quot; column=&quot;0&quot;&gt;
+                     &lt;property name=&quot;name&quot;&gt;
++                        &lt;cstring&gt;textLabel3_2_2&lt;/cstring&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;text&quot;&gt;
++                        &lt;string&gt;Device&lt;/string&gt;
++                    &lt;/property&gt;
++                &lt;/widget&gt;
++                &lt;widget class=&quot;QLabel&quot; row=&quot;0&quot; column=&quot;0&quot;&gt;
++                    &lt;property name=&quot;name&quot;&gt;
++                        &lt;cstring&gt;textLabel3_2&lt;/cstring&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;text&quot;&gt;
++                        &lt;string&gt;Plugin&lt;/string&gt;
++                    &lt;/property&gt;
++                &lt;/widget&gt;
++                &lt;widget class=&quot;QComboBox&quot; row=&quot;1&quot; column=&quot;1&quot;&gt;
++                    &lt;item&gt;
++                        &lt;property name=&quot;text&quot;&gt;
++                            &lt;string&gt;/dev/video0&lt;/string&gt;
++                        &lt;/property&gt;
++                    &lt;/item&gt;
++                    &lt;property name=&quot;name&quot;&gt;
++                        &lt;cstring&gt;m_device&lt;/cstring&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;sizePolicy&quot;&gt;
++                        &lt;sizepolicy&gt;
++                            &lt;hsizetype&gt;3&lt;/hsizetype&gt;
++                            &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                            &lt;horstretch&gt;0&lt;/horstretch&gt;
++                            &lt;verstretch&gt;0&lt;/verstretch&gt;
++                        &lt;/sizepolicy&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;editable&quot;&gt;
++                        &lt;bool&gt;true&lt;/bool&gt;
++                    &lt;/property&gt;
++                &lt;/widget&gt;
++                &lt;widget class=&quot;QComboBox&quot; row=&quot;0&quot; column=&quot;1&quot;&gt;
++                    &lt;item&gt;
++                        &lt;property name=&quot;text&quot;&gt;
++                            &lt;string&gt;Image&lt;/string&gt;
++                        &lt;/property&gt;
++                    &lt;/item&gt;
++                    &lt;item&gt;
++                        &lt;property name=&quot;text&quot;&gt;
++                            &lt;string&gt;V4L&lt;/string&gt;
++                        &lt;/property&gt;
++                    &lt;/item&gt;
++                    &lt;property name=&quot;name&quot;&gt;
++                        &lt;cstring&gt;m_pluginCombo&lt;/cstring&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;enabled&quot;&gt;
++                        &lt;bool&gt;true&lt;/bool&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;editable&quot;&gt;
++                        &lt;bool&gt;true&lt;/bool&gt;
++                    &lt;/property&gt;
++                &lt;/widget&gt;
++                &lt;widget class=&quot;QToolButton&quot; row=&quot;1&quot; column=&quot;2&quot;&gt;
++                    &lt;property name=&quot;name&quot;&gt;
++                        &lt;cstring&gt;m_selectFileButton&lt;/cstring&gt;
++                    &lt;/property&gt;
++                    &lt;property name=&quot;text&quot;&gt;
++                        &lt;string&gt;...&lt;/string&gt;
++                    &lt;/property&gt;
++                &lt;/widget&gt;
++                &lt;widget class=&quot;QButtonGroup&quot; row=&quot;2&quot; column=&quot;0&quot; rowspan=&quot;1&quot; colspan=&quot;3&quot;&gt;
++                    &lt;property name=&quot;name&quot;&gt;
+                         &lt;cstring&gt;m_previewGroup&lt;/cstring&gt;
+                     &lt;/property&gt;
+                     &lt;property name=&quot;sizePolicy&quot;&gt;
+@@ -70,71 +136,6 @@
+                         &lt;/widget&gt;
+                     &lt;/grid&gt;
+                 &lt;/widget&gt;
+-                &lt;widget class=&quot;QLayoutWidget&quot; row=&quot;0&quot; column=&quot;0&quot;&gt;
+-                    &lt;property name=&quot;name&quot;&gt;
+-                        &lt;cstring&gt;layout3&lt;/cstring&gt;
+-                    &lt;/property&gt;
+-                    &lt;grid&gt;
+-                        &lt;property name=&quot;name&quot;&gt;
+-                            &lt;cstring&gt;unnamed&lt;/cstring&gt;
+-                        &lt;/property&gt;
+-                        &lt;widget class=&quot;QLabel&quot; row=&quot;1&quot; column=&quot;0&quot;&gt;
+-                            &lt;property name=&quot;name&quot;&gt;
+-                                &lt;cstring&gt;textLabel3_2_2&lt;/cstring&gt;
+-                            &lt;/property&gt;
+-                            &lt;property name=&quot;text&quot;&gt;
+-                                &lt;string&gt;Device&lt;/string&gt;
+-                            &lt;/property&gt;
+-                        &lt;/widget&gt;
+-                        &lt;widget class=&quot;QLabel&quot; row=&quot;0&quot; column=&quot;0&quot;&gt;
+-                            &lt;property name=&quot;name&quot;&gt;
+-                                &lt;cstring&gt;textLabel3_2&lt;/cstring&gt;
+-                            &lt;/property&gt;
+-                            &lt;property name=&quot;text&quot;&gt;
+-                                &lt;string&gt;Plugin&lt;/string&gt;
+-                            &lt;/property&gt;
+-                        &lt;/widget&gt;
+-                        &lt;widget class=&quot;QComboBox&quot; row=&quot;1&quot; column=&quot;1&quot;&gt;
+-                            &lt;item&gt;
+-                                &lt;property name=&quot;text&quot;&gt;
+-                                    &lt;string&gt;/dev/video0&lt;/string&gt;
+-                                &lt;/property&gt;
+-                            &lt;/item&gt;
+-                            &lt;property name=&quot;name&quot;&gt;
+-                                &lt;cstring&gt;m_device&lt;/cstring&gt;
+-                            &lt;/property&gt;
+-                            &lt;property name=&quot;sizePolicy&quot;&gt;
+-                                &lt;sizepolicy&gt;
+-                                    &lt;hsizetype&gt;3&lt;/hsizetype&gt;
+-                                    &lt;vsizetype&gt;0&lt;/vsizetype&gt;
+-                                    &lt;horstretch&gt;0&lt;/horstretch&gt;
+-                                    &lt;verstretch&gt;0&lt;/verstretch&gt;
+-                                &lt;/sizepolicy&gt;
+-                            &lt;/property&gt;
+-                            &lt;property name=&quot;editable&quot;&gt;
+-                                &lt;bool&gt;true&lt;/bool&gt;
+-                            &lt;/property&gt;
+-                        &lt;/widget&gt;
+-                        &lt;widget class=&quot;QComboBox&quot; row=&quot;0&quot; column=&quot;1&quot;&gt;
+-                            &lt;item&gt;
+-                                &lt;property name=&quot;text&quot;&gt;
+-                                    &lt;string&gt;V4L&lt;/string&gt;
+-                                &lt;/property&gt;
+-                            &lt;/item&gt;
+-                            &lt;item&gt;
+-                                &lt;property name=&quot;text&quot;&gt;
+-                                    &lt;string&gt;Image&lt;/string&gt;
+-                                &lt;/property&gt;
+-                            &lt;/item&gt;
+-                            &lt;property name=&quot;name&quot;&gt;
+-                                &lt;cstring&gt;m_pluginCombo&lt;/cstring&gt;
+-                            &lt;/property&gt;
+-                            &lt;property name=&quot;editable&quot;&gt;
+-                                &lt;bool&gt;false&lt;/bool&gt;
+-                            &lt;/property&gt;
+-                        &lt;/widget&gt;
+-                    &lt;/grid&gt;
+-                &lt;/widget&gt;
+             &lt;/grid&gt;
+         &lt;/widget&gt;
+     &lt;/grid&gt;
+@@ -144,13 +145,13 @@
+         &lt;class&gt;KonferenceVideoWidget&lt;/class&gt;
+         &lt;header location=&quot;local&quot;&gt;videowidget.h&lt;/header&gt;
+         &lt;sizehint&gt;
+-            &lt;width&gt;176&lt;/width&gt;
+-            &lt;height&gt;144&lt;/height&gt;
++            &lt;width&gt;352&lt;/width&gt;
++            &lt;height&gt;288&lt;/height&gt;
+         &lt;/sizehint&gt;
+         &lt;container&gt;0&lt;/container&gt;
+         &lt;sizepolicy&gt;
+-            &lt;hordata&gt;4&lt;/hordata&gt;
+-            &lt;verdata&gt;4&lt;/verdata&gt;
++            &lt;hordata&gt;5&lt;/hordata&gt;
++            &lt;verdata&gt;5&lt;/verdata&gt;
+             &lt;horstretch&gt;0&lt;/horstretch&gt;
+             &lt;verstretch&gt;0&lt;/verstretch&gt;
+         &lt;/sizepolicy&gt;
+
+Modified: konference/src/dialogs/wizard/page4layout.ui
+===================================================================
+--- konference/src/dialogs/wizard/page4layout.ui	2005-06-02 15:54:01 UTC (rev 66)
++++ konference/src/dialogs/wizard/page4layout.ui	2005-06-05 12:49:08 UTC (rev 67)
+@@ -73,6 +73,11 @@
+                 &lt;widget class=&quot;QComboBox&quot; row=&quot;0&quot; column=&quot;1&quot;&gt;
+                     &lt;item&gt;
+                         &lt;property name=&quot;text&quot;&gt;
++                            &lt;string&gt;Arts&lt;/string&gt;
++                        &lt;/property&gt;
++                    &lt;/item&gt;
++                    &lt;item&gt;
++                        &lt;property name=&quot;text&quot;&gt;
+                             &lt;string&gt;OSS&lt;/string&gt;
+                         &lt;/property&gt;
+                     &lt;/item&gt;
+@@ -80,10 +85,10 @@
+                         &lt;cstring&gt;m_audioPluginComboBox&lt;/cstring&gt;
+                     &lt;/property&gt;
+                     &lt;property name=&quot;enabled&quot;&gt;
+-                        &lt;bool&gt;false&lt;/bool&gt;
++                        &lt;bool&gt;true&lt;/bool&gt;
+                     &lt;/property&gt;
+                     &lt;property name=&quot;editable&quot;&gt;
+-                        &lt;bool&gt;true&lt;/bool&gt;
++                        &lt;bool&gt;false&lt;/bool&gt;
+                     &lt;/property&gt;
+                 &lt;/widget&gt;
+             &lt;/grid&gt;
+
+Modified: konference/src/dialogs/wizard/wizard.cpp
+===================================================================
+--- konference/src/dialogs/wizard/wizard.cpp	2005-06-02 15:54:01 UTC (rev 66)
++++ konference/src/dialogs/wizard/wizard.cpp	2005-06-05 12:49:08 UTC (rev 67)
+@@ -36,8 +36,6 @@
+ KonferenceWizard::KonferenceWizard(QWidget* parent = 0, const char* name)
+ 		: KWizard(parent, name,TRUE)
+ {
+-	m_finished = false;
+-	
+ 	setCaption( i18n(&quot;Konference Wizard&quot; ) );
+ 	m_page1 = new page1();
+ 	addPage(m_page1,i18n(&quot;Konference Configuration Wizard&quot;));
+@@ -54,6 +52,7 @@
+ 	addPage(m_page3,i18n(&quot;Video&quot;));
+ 	m_page4 = new page4();
+ 	addPage(m_page4,i18n(&quot;Audio&quot;));
++	setFinishEnabled(m_page4, true);
+ }
+ 
+ void KonferenceWizard::slotNameChanged( const QString &amp;k )
+@@ -74,19 +73,27 @@
+ {
+ 	//we save our settings...
+ 	KonferenceSettings::setName(m_page2-&gt;m_nameEdit-&gt;text());
+-	//KonferenceSettings::setAudioPlugin(m_page2-&gt;m_audioPluginComboBox-&gt;currentText());
+-	//KonferenceSettings::setInputDevice(m_page2-&gt;m_audioInputDeviceComboBox-&gt;currentText());
+-	//KonferenceSettings::setOutputDevice(m_page2-&gt;m_audioOutputDeviceComboBox-&gt;currentText());
+-	//KonferenceSettings::setVideoDevice(m_page2-&gt;m_videoComboBox-&gt;currentText());
++	if(m_page4-&gt;m_audioPluginComboBox-&gt;currentText() == &quot;OSS&quot;)
++		KonferenceSettings::setAudioPlugin(KonferenceSettings::EnumAudioPlugin::OSS);
++	else
++		KonferenceSettings::setAudioPlugin(KonferenceSettings::EnumAudioPlugin::Arts);
++		
++	KonferenceSettings::setInputDevice(m_page4-&gt;m_audioInputDeviceComboBox-&gt;currentText());
++	KonferenceSettings::setOutputDevice(m_page4-&gt;m_audioOutputDeviceComboBox-&gt;currentText());
++	
++	if(m_page3-&gt;m_pluginCombo-&gt;currentText() == &quot;V4L&quot;)
++		KonferenceSettings::setVideoPlugin(KonferenceSettings::EnumVideoPlugin::V4L);
++	else
++		KonferenceSettings::setVideoPlugin(KonferenceSettings::EnumVideoPlugin::Image);
++	
++	KonferenceSettings::setVideoDevice(m_page3-&gt;m_device-&gt;currentText());
++	
+ 	KonferenceSettings::writeConfig();
+-	m_finished = true;
+ 	KWizard::accept();
+ }
+ 
+ void KonferenceWizard::reject()
+ {
+-	//TODO
+-	m_finished = true;
+ 	KWizard::reject();
+ }
+ 
+@@ -105,5 +112,4 @@
+ KonferenceWizard::~KonferenceWizard()
+ {}
+ 
+-
+ #include &quot;wizard.moc&quot;
+
+Modified: konference/src/dialogs/wizard/wizard.h
+===================================================================
+--- konference/src/dialogs/wizard/wizard.h	2005-06-02 15:54:01 UTC (rev 66)
++++ konference/src/dialogs/wizard/wizard.h	2005-06-05 12:49:08 UTC (rev 67)
+@@ -43,7 +43,6 @@
+ 	KonferenceWizard(QWidget *parent, const char* name = 0);
+ 
+ 	~KonferenceWizard();
+-	bool finished(){return m_finished;};
+ 	
+ public slots:
+ 	//void slotNameChanged( const QString &amp; );
+@@ -61,8 +60,6 @@
+ 	page2 *m_page2;
+ 	page3 *m_page3;
+ 	page4 *m_page4;
+-	
+-	bool m_finished;
+ };
+ 
+ #endif
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000009.html">[Konference-commits] r66 - konference/src/sip
+</A></li>
+	<LI>Next message: <A HREF="000001.html">[Konference-commits] r68 - konference/src/rtp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>

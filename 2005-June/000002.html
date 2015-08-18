@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r69 - konference/src
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r69%20-%20konference/src&In-Reply-To=%3C200506051251.j55Cp1BO020868%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000001.html">
+   <LINK REL="Next"  HREF="000003.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r69 - konference/src</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r69%20-%20konference/src&In-Reply-To=%3C200506051251.j55Cp1BO020868%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r69 - konference/src">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Sun Jun  5 14:51:01 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000001.html">[Konference-commits] r68 - konference/src/rtp
+</A></li>
+        <LI>Next message: <A HREF="000003.html">[Konference-commits] r70 - konference/src
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2">[ date ]</a>
+              <a href="thread.html#2">[ thread ]</a>
+              <a href="subject.html#2">[ subject ]</a>
+              <a href="author.html#2">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-06-05 14:51:01 +0200 (Sun, 05 Jun 2005)
+New Revision: 69
+
+Modified:
+   konference/src/konference_part.cpp
+Log:
+now using createStandardStatusBarAction()
+
+
+Modified: konference/src/konference_part.cpp
+===================================================================
+--- konference/src/konference_part.cpp	2005-06-05 12:50:18 UTC (rev 68)
++++ konference/src/konference_part.cpp	2005-06-05 12:51:01 UTC (rev 69)
+@@ -59,7 +59,7 @@
+ KonferencePart::KonferencePart( QWidget *parentWidget, const char *widgetName,
+                                 QObject *parent, const char *name )
+ 		: DCOPObject(&quot;KonferencePart&quot;), KParts::ReadOnlyPart(parent, name)
+-		
++
+ {
+ 	m_parent = parentWidget;
+ 
+@@ -75,11 +75,12 @@
+ 	m_widget = ui-&gt;getVideoWidget();
+ 
+ 	setWidget(ui);
+-	showWizard();
+-	//TODO ?
+-	//while(!m_wizard-&gt;finished())
+-	//{}
+-	
++	if(KonferenceSettings::firstRun()==true)
++	{
++		KonferenceSettings::setFirstRun(false);
++		showWizard();
++	}
++
+ 	sipStack = new SipContainer();
+ 	//tell it that we want to receive the events
+ 	sipStack-&gt;UiOpened(this);
+@@ -437,7 +438,7 @@
+ 
+ void KonferencePart::TransmitLocalWebcamImage()
+ {
+-	unsigned char *yuvFrame = m_webcam-&gt;GetVideoFrame(m_txWebcamClient);
++	uchar *yuvFrame = m_webcam-&gt;GetVideoFrame(m_txWebcamClient);
+ 
+ 	int encLen=0;
+ 	if (yuvFrame != 0 &amp;&amp; m_rtpVideo)
+@@ -445,41 +446,45 @@
+ 		//TODO find better fix for odd quickcam resolutions
+ 		int txWidth = m_webcam-&gt;width();//176;
+ 		int txHeight = m_webcam-&gt;height();//144;
+-		if((m_webcam-&gt;width() &lt; txWidth) || (m_webcam-&gt;height() &lt; txWidth))
+-			cropYuvImage(yuvFrame, m_webcam-&gt;width(), m_webcam-&gt;height(), 0, 0, txWidth, txHeight, yuvBuffer);
+-		else
+-			scaleYuvImage(yuvFrame, m_webcam-&gt;width(), m_webcam-&gt;height(), txWidth, txHeight, yuvBuffer);
++		//if((m_webcam-&gt;width() &lt; txWidth) || (m_webcam-&gt;height() &lt; txWidth))
++		//	cropYuvImage(yuvFrame, m_webcam-&gt;width(), m_webcam-&gt;height(), 0, 0, txWidth, txHeight, yuvBuffer);
++		//else
++		scaleYuvImage(yuvFrame, m_webcam-&gt;width(), m_webcam-&gt;height(), txWidth, txHeight, yuvBuffer);
+ 
+ 		uchar *encFrame = h263-&gt;H263EncodeFrame(yuvBuffer, &amp;encLen);
+-		if(encLen &lt;= 0)
++		if(encLen &lt; 0)
+ 		{
+ 			m_webcam-&gt;FreeVideoBuffer(m_txWebcamClient, yuvFrame);
+-			kdDebug() &lt;&lt; &quot;some wired thing happened with h263-encoding&quot; &lt;&lt; endl;
++			kdDebug() &lt;&lt; &quot;some wired thing happened with h263-encoding! encLen=&quot; &lt;&lt; encLen &lt;&lt; endl;
+ 		}
+-		VIDEOBUFFER *vb = m_rtpVideo-&gt;getVideoBuffer(encLen);
+-		//VIDEOBUFFER *vb = m_rtpVideo-&gt;getVideoBuffer();
+-		if (vb)
++		//VIDEOBUFFER *vb = m_rtpVideo-&gt;getVideoBuffer(encLen);
++		else
+ 		{
+-			if (encLen &gt; (int)sizeof(vb-&gt;video))
++
++			VIDEOBUFFER *vb = m_rtpVideo-&gt;getVideoBuffer(0);
++			if (vb)
+ 			{
+-				kdDebug()  &lt;&lt; &quot;SIP: Encoded H.263 frame size is &quot; &lt;&lt; encLen &lt;&lt; &quot;; too big for buffer\n&quot;;
+-				m_rtpVideo-&gt;freeVideoBuffer(vb);
+-			}
+-			else
+-			{
+-				memcpy(vb-&gt;video, encFrame, encLen); // Optimisation to get rid of this copy may be possible, check H.263 stack
+-				vb-&gt;len = encLen;
+-				vb-&gt;w = m_webcam-&gt;width();//176;
+-				vb-&gt;h = m_webcam-&gt;height();//144;
+-				if (!m_rtpVideo-&gt;queueVideo(vb))
++				if (encLen &gt; (int)sizeof(vb-&gt;video))
+ 				{
+-					kdDebug()  &lt;&lt; &quot;KonferencePart::TransmitLocalWebcamImage(): Could not queue RTP Video frame for transmission\n&quot;;
++					kdDebug()  &lt;&lt; &quot;SIP: Encoded H.263 frame size is &quot; &lt;&lt; encLen &lt;&lt; &quot;; too big for buffer\n&quot;;
+ 					m_rtpVideo-&gt;freeVideoBuffer(vb);
+ 				}
++				else
++				{
++					memcpy(vb-&gt;video, encFrame, encLen); // Optimisation to get rid of this copy may be possible, check H.263 stack
++					vb-&gt;len = encLen;
++					vb-&gt;w = m_webcam-&gt;width();//176;
++					vb-&gt;h = m_webcam-&gt;height();//144;
++					if (!m_rtpVideo-&gt;queueVideo(vb))
++					{
++						kdDebug()  &lt;&lt; &quot;KonferencePart::TransmitLocalWebcamImage(): Could not queue RTP Video frame for transmission\n&quot;;
++						m_rtpVideo-&gt;freeVideoBuffer(vb);
++					}
++				}
+ 			}
+ 		}
++		m_webcam-&gt;FreeVideoBuffer(m_txWebcamClient, yuvFrame);
+ 	}
+-	m_webcam-&gt;FreeVideoBuffer(m_txWebcamClient, yuvFrame);
+ }
+ 
+ void KonferencePart::DrawLocalWebcamImage()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000001.html">[Konference-commits] r68 - konference/src/rtp
+</A></li>
+	<LI>Next message: <A HREF="000003.html">[Konference-commits] r70 - konference/src
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2">[ date ]</a>
+              <a href="thread.html#2">[ thread ]</a>
+              <a href="subject.html#2">[ subject ]</a>
+              <a href="author.html#2">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>

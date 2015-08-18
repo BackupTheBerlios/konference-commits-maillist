@@ -1,0 +1,109 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Konference-commits] r71 - konference/src
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/konference-commits/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r71%20-%20konference/src&In-Reply-To=%3C200506051253.j55CrPX6021183%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000003.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Konference-commits] r71 - konference/src</H1>
+    <B>Malte B&#246;hme at BerliOS</B> 
+    <A HREF="mailto:konference-commits%40lists.berlios.de?Subject=Re%3A%20%5BKonference-commits%5D%20r71%20-%20konference/src&In-Reply-To=%3C200506051253.j55CrPX6021183%40sheep.berlios.de%3E"
+       TITLE="[Konference-commits] r71 - konference/src">maldn at sheep.berlios.de
+       </A><BR>
+    <I>Sun Jun  5 14:53:25 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000003.html">[Konference-commits] r70 - konference/src
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4">[ date ]</a>
+              <a href="thread.html#4">[ thread ]</a>
+              <a href="subject.html#4">[ subject ]</a>
+              <a href="author.html#4">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: maldn
+Date: 2005-06-05 14:53:25 +0200 (Sun, 05 Jun 2005)
+New Revision: 71
+
+Modified:
+   konference/src/konference.kcfg
+Log:
+changed default-picture and added firstRun (for the wizard)
+
+
+Modified: konference/src/konference.kcfg
+===================================================================
+--- konference/src/konference.kcfg	2005-06-05 12:51:32 UTC (rev 70)
++++ konference/src/konference.kcfg	2005-06-05 12:53:25 UTC (rev 71)
+@@ -9,6 +9,9 @@
+ 		&lt;entry name=&quot;historyList&quot; type=&quot;StringList&quot;&gt;
+ 		&lt;/entry&gt;
+ 
++		&lt;entry name=&quot;firstRun&quot; type=&quot;Bool&quot;&gt;
++		&lt;default&gt;true&lt;/default&gt;
++		&lt;/entry&gt;
+ 	&lt;/group&gt;
+ &lt;group name=&quot;audio&quot;&gt;
+ 		&lt;entry name=&quot;audioPlugin&quot; type=&quot;Enum&quot;&gt;
+@@ -17,6 +20,7 @@
+ 			&lt;choice name=&quot;Arts&quot;/&gt;
+ 			&lt;choice name=&quot;OSS&quot;/&gt;
+ 		&lt;/choices&gt;
++		&lt;default&gt;Arts&lt;/default&gt;
+ 		&lt;/entry&gt;
+ 		
+ 		&lt;entry name=&quot;outputMute&quot; type=&quot;Bool&quot;&gt;
+@@ -59,6 +63,7 @@
+ 			&lt;choice name=&quot;V4L&quot;/&gt;
+ 			&lt;choice name=&quot;Image&quot;/&gt;
+ 		&lt;/choices&gt;
++		&lt;default&gt;Image&lt;/default&gt;
+ 		&lt;/entry&gt;
+ 		
+ 		&lt;entry name=&quot;videoDevice&quot; type=&quot;String&quot;&gt;
+@@ -66,7 +71,7 @@
+ 		&lt;/entry&gt;
+ 
+ 		&lt;entry name=&quot;fakeDeviceImage&quot; type=&quot;Path&quot;&gt;
+-		&lt;default&gt;$KDEDIR/share/apps/konferencepart/logo.png&lt;/default&gt;
++		&lt;default&gt;$KDEDIR/share/apps/konference/logo.png&lt;/default&gt;
+ 		&lt;/entry&gt;
+ 
+ 		&lt;entry name=&quot;videoReception&quot; type=&quot;Bool&quot;&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000003.html">[Konference-commits] r70 - konference/src
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4">[ date ]</a>
+              <a href="thread.html#4">[ thread ]</a>
+              <a href="subject.html#4">[ subject ]</a>
+              <a href="author.html#4">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/konference-commits">More information about the Konference-commits
+mailing list</a><br>
+</body></html>
